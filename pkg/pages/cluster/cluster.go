@@ -2,6 +2,10 @@
 // judges, and applies the session visibility rules C-59 and C-64 fix. Every
 // read goes through the control plane's client (C-12); a product package never
 // holds a credential of its own.
+//
+// Migration: this reader moves with the page shell to tsic404/kos-dashboard in
+// stage 2. kosd keeps the visibility and role predicates every read applies
+// (pkg/access, C-59).
 package cluster
 
 import (

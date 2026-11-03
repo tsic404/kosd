@@ -7,6 +7,11 @@
 // them and adds what makes an upgrade a first-class flow: the preflight that
 // names the affected applications and the declared downtime, the unhealthy
 // application count the upgrade warns about, and the item it cannot judge.
+//
+// Migration: tsic404/kosadm takes over the platform upgrade flow in stage 2.
+// The target-version gate belongs to this package and moves with it. kosd keeps
+// the reconciler side: an application bound to an unschedulable node stops
+// itself and returns once the node is schedulable again (pkg/app, C-65).
 package upgrade
 
 import (

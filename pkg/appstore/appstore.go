@@ -4,6 +4,11 @@
 // package ships with the distribution and hosts no repository of its own
 // (NG3); the artifact reference below only locates the bytes the installer
 // resolves through its ArtifactSource (C-17).
+//
+// Migration: tsic404/kos-appstore takes over this product surface in stage 3.
+// kosd keeps the catalogue source contract and its sync (pkg/catalogue, C-24)
+// and the definition, configuration and install path of an application
+// (pkg/app, C-31, C-32, C-33).
 package appstore
 
 import (

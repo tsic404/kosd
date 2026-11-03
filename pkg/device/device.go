@@ -3,6 +3,11 @@
 // that fall outside the collection boundary, a maintainer refreshes the
 // validity markers and reclaims a vanished node's fact, and the read side
 // builds the device view.
+//
+// Migration: the collection face — the Collector that writes its own node's
+// fact — moves to tsic404/kos-node in stage 2. The fact object, its boundary
+// validation, the validity markers and reclamation (Validator, Maintainer) and
+// the read view stay in kosd (C-37).
 package device
 
 import (

@@ -3,6 +3,11 @@
 // declared item by its source type, marks reads beyond the one freshness bound
 // C-13 fixes as stale, and carries the control-plane write entry of each
 // action. A read-only page states why and exposes no modification entry.
+//
+// Migration: tsic404/kos-dashboard takes over the page shell in stage 2,
+// including the cluster reader its page sources use (pkg/pages/cluster). kosd
+// keeps the page, item and action shape an extension declares (pkg/extension,
+// C-22, C-53).
 package pages
 
 import (

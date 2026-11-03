@@ -7,6 +7,10 @@
 // volume's lifecycle and access ownership, while this package serves browsing,
 // upload, download, rename and delete from its own handler. The interface opens
 // as an application window, so the package declares no panel page.
+//
+// Migration: tsic404/kos-filemanager takes over this product surface in
+// stage 3. kosd keeps the volume lifecycle (pkg/volume, C-38), access
+// ownership (pkg/access, C-60) and the preference store (pkg/identity, C-27).
 package filemanager
 
 import (

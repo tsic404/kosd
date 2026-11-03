@@ -3,6 +3,11 @@
 // (C-27). An entry is a user-written object, so this package contributes no
 // controller: removing an entry reaches the entry alone and never the
 // application, its data or its downstream objects.
+//
+// Migration: tsic404/kos-dashboard takes over the desktop entry class, the
+// desktop page and the dock preference domain in stage 2. kosd keeps the
+// contribution contract (pkg/extension, C-18, C-22) and the preference store
+// (pkg/identity, C-27).
 package dock
 
 import (

@@ -3,6 +3,12 @@
 // (C-30). A window is interaction state the browser holds; opening, minimizing
 // and closing one writes no cluster object, so it never installs, uninstalls,
 // scales or rebuilds the application it shows.
+//
+// Migration: tsic404/kos-dashboard takes over the window layout and default
+// size preference structures in stage 2, along with the browser-local window
+// set and its open, minimize and close behavior. kosd keeps the preference
+// store (pkg/identity, C-27); the window set stays browser-session state and
+// never becomes a cluster object or a preference value (C-30, KOSD-F-19).
 package wm
 
 import (

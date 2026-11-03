@@ -3,6 +3,10 @@
 // hardware, GPU facts, the health alerts derived from them and the stale and
 // invalid markers C-37 defines. The page has no modification entry: device
 // facts are written by the node collector alone.
+//
+// Migration: tsic404/kos-devicemanager takes over this product surface in
+// stage 3. The device fact object, its boundary validation, the staleness
+// markers and the read view stay in kosd (pkg/device, C-37).
 package kosdevicemanager
 
 import "github.com/tsic404/kosd/pkg/extension"
