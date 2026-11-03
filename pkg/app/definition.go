@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/tsic404/kos/api/v1beta1"
+	"github.com/tsic404/kosd/api/v1beta1"
 )
 
 // DigestPrefix is what a package digest starts with (C-32).

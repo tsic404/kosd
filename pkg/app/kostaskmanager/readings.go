@@ -9,13 +9,13 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/dynamic"
 
-	"github.com/tsic404/kos/api/v1beta1"
-	"github.com/tsic404/kos/pkg/app"
-	"github.com/tsic404/kos/pkg/controlplane"
-	"github.com/tsic404/kos/pkg/extension"
-	"github.com/tsic404/kos/pkg/identity"
-	"github.com/tsic404/kos/pkg/pages"
-	"github.com/tsic404/kos/pkg/pages/cluster"
+	"github.com/tsic404/kosd/api/v1beta1"
+	"github.com/tsic404/kosd/pkg/app"
+	"github.com/tsic404/kosd/pkg/controlplane"
+	"github.com/tsic404/kosd/pkg/extension"
+	"github.com/tsic404/kosd/pkg/identity"
+	"github.com/tsic404/kosd/pkg/pages"
+	"github.com/tsic404/kosd/pkg/pages/cluster"
 )
 
 // eventLimit bounds the overview's recent events; older events are not readable

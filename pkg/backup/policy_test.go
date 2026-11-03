@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/tsic404/kos/api/v1beta1"
+	"github.com/tsic404/kosd/api/v1beta1"
 )
 
 // TestValidatePolicyShape covers the elements C-41 requires: a selector, a

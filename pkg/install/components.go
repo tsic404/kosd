@@ -9,9 +9,9 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic"
 
-	"github.com/tsic404/kos/api"
-	"github.com/tsic404/kos/pkg/extension"
-	"github.com/tsic404/kos/pkg/markers"
+	"github.com/tsic404/kosd/api"
+	"github.com/tsic404/kosd/pkg/extension"
+	"github.com/tsic404/kosd/pkg/markers"
 )
 
 // ComponentClasses lists the object classes the installed components declare.

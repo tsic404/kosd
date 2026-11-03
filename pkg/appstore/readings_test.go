@@ -6,12 +6,12 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/tsic404/kos/api/v1beta1"
-	"github.com/tsic404/kos/pkg/app"
-	"github.com/tsic404/kos/pkg/catalogue"
-	"github.com/tsic404/kos/pkg/extension"
-	"github.com/tsic404/kos/pkg/identity"
-	"github.com/tsic404/kos/pkg/write"
+	"github.com/tsic404/kosd/api/v1beta1"
+	"github.com/tsic404/kosd/pkg/app"
+	"github.com/tsic404/kosd/pkg/catalogue"
+	"github.com/tsic404/kosd/pkg/extension"
+	"github.com/tsic404/kosd/pkg/identity"
+	"github.com/tsic404/kosd/pkg/write"
 )
 
 // template renders one ConfigMap; the catalogue only requires a template.

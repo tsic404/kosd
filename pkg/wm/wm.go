@@ -9,7 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/tsic404/kos/pkg/extension"
+	"github.com/tsic404/kosd/pkg/extension"
 )
 
 // The package identity and the preference keys it declares.

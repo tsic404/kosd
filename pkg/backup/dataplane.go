@@ -10,7 +10,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/tsic404/kos/api/v1beta1"
+	"github.com/tsic404/kosd/api/v1beta1"
 )
 
 // Run layout constants. A run directory holds one copy of every covered volume

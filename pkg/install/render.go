@@ -7,9 +7,9 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
-	"github.com/tsic404/kos/api"
-	"github.com/tsic404/kos/pkg/markers"
-	"github.com/tsic404/kos/pkg/write"
+	"github.com/tsic404/kosd/api"
+	"github.com/tsic404/kosd/pkg/markers"
+	"github.com/tsic404/kosd/pkg/write"
 )
 
 // Document is one rendered object and the resource the install writes it

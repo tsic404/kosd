@@ -15,8 +15,8 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
-	"github.com/tsic404/kos/pkg/controlplane"
-	"github.com/tsic404/kos/tests/acceptance/harness"
+	"github.com/tsic404/kosd/pkg/controlplane"
+	"github.com/tsic404/kosd/tests/acceptance/harness"
 )
 
 // readTime is the clock the case reads on, so the event fixtures and the
@@ -145,8 +145,8 @@ func event(name string, lastSeen time.Time) map[string]any {
 		"count":              1,
 		"firstTimestamp":     stamp,
 		"lastTimestamp":      stamp,
-		"reportingComponent": "kos-shell",
-		"reportingInstance":  "kos-shell-1",
+		"reportingComponent": "kosd",
+		"reportingInstance":  "kosd-1",
 	}
 }
 

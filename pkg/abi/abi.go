@@ -18,7 +18,7 @@ import (
 	utilyaml "k8s.io/apimachinery/pkg/util/yaml"
 	"sigs.k8s.io/yaml"
 
-	"github.com/tsic404/kos/api"
+	"github.com/tsic404/kosd/api"
 )
 
 // Versions are the two versions served at the same time; the newer one is the

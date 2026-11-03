@@ -5,7 +5,7 @@ import (
 	"sort"
 	"time"
 
-	"github.com/tsic404/kos/pkg/controlplane"
+	"github.com/tsic404/kosd/pkg/controlplane"
 )
 
 // FixtureLogs is a log source over declared lines (C-64). The cluster's log

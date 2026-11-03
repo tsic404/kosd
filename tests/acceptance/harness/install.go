@@ -8,7 +8,7 @@ import (
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 
-	"github.com/tsic404/kos/pkg/install"
+	"github.com/tsic404/kosd/pkg/install"
 )
 
 // InstallerIdentity is the API server user the installation runs as.

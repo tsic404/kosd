@@ -13,8 +13,8 @@ import (
 	dynamicfake "k8s.io/client-go/dynamic/fake"
 	clienttesting "k8s.io/client-go/testing"
 
-	"github.com/tsic404/kos/api"
-	"github.com/tsic404/kos/pkg/markers"
+	"github.com/tsic404/kosd/api"
+	"github.com/tsic404/kosd/pkg/markers"
 )
 
 // fakeWriter returns a writer over one fake cluster: a downstream Service and

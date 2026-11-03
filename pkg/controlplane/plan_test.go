@@ -12,9 +12,9 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
-	"github.com/tsic404/kos/api"
-	"github.com/tsic404/kos/pkg/markers"
-	"github.com/tsic404/kos/pkg/volume"
+	"github.com/tsic404/kosd/api"
+	"github.com/tsic404/kosd/pkg/markers"
+	"github.com/tsic404/kosd/pkg/volume"
 )
 
 // fakeSource serves a fixed object set for the plan cases.
@@ -98,10 +98,10 @@ func object(kind, namespace, name string, labels, annotations map[string]any) ma
 func TestBuildPlanReportsTheThreeDeviationClasses(t *testing.T) {
 	server := planServer(
 		object("ApplicationDefinition", "", "existing",
-			map[string]any{markers.ManagedBy: "kos-shell", markers.OwnerUID: "install-1"},
+			map[string]any{markers.ManagedBy: "kosd", markers.OwnerUID: "install-1"},
 			map[string]any{"example.test/release": "v1"}),
 		object("SystemComponent", "", "kept",
-			map[string]any{markers.ManagedBy: "kos-shell", markers.OwnerUID: "install-1"}, nil),
+			map[string]any{markers.ManagedBy: "kosd", markers.OwnerUID: "install-1"}, nil),
 		object("Volume", "default", "data", map[string]any{markers.OwnerUID: "install-1"}, nil),
 		object("BackupPolicy", "default", "dropped", map[string]any{markers.OwnerUID: "install-1"}, nil),
 	)
@@ -110,12 +110,12 @@ func TestBuildPlanReportsTheThreeDeviationClasses(t *testing.T) {
 		Scope: &Scope{OwnerUID: "install-1"},
 		Objects: []map[string]any{
 			object("ApplicationDefinition", "", "existing",
-				map[string]any{markers.ManagedBy: "kos-shell", markers.OwnerUID: "install-1"},
+				map[string]any{markers.ManagedBy: "kosd", markers.OwnerUID: "install-1"},
 				map[string]any{"example.test/release": "v2"}),
 			object("SystemComponent", "", "kept",
-				map[string]any{markers.ManagedBy: "kos-shell", markers.OwnerUID: "install-1"}, nil),
+				map[string]any{markers.ManagedBy: "kosd", markers.OwnerUID: "install-1"}, nil),
 			object("SystemComponent", "", "fresh",
-				map[string]any{markers.ManagedBy: "kos-shell", markers.OwnerUID: "install-1"}, nil),
+				map[string]any{markers.ManagedBy: "kosd", markers.OwnerUID: "install-1"}, nil),
 		},
 	})
 	if failure != nil {
@@ -198,7 +198,7 @@ func TestBuildPlanAppliesTheApplicationFieldBoundary(t *testing.T) {
 
 // volumeObject is one Volume manifest with the given spec.
 func volumeObject(namespace, name string, spec map[string]any) map[string]any {
-	manifest := object("Volume", namespace, name, map[string]any{markers.ManagedBy: "kos-shell"}, nil)
+	manifest := object("Volume", namespace, name, map[string]any{markers.ManagedBy: "kosd"}, nil)
 	manifest["spec"] = spec
 	return manifest
 }

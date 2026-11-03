@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/tsic404/kos/api/v1beta1"
+	"github.com/tsic404/kosd/api/v1beta1"
 )
 
 // Capability is one capability a provider registers at one version (C-09).

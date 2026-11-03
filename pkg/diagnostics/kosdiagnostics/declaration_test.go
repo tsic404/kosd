@@ -3,7 +3,7 @@ package kosdiagnostics
 import (
 	"testing"
 
-	"github.com/tsic404/kos/pkg/extension"
+	"github.com/tsic404/kosd/pkg/extension"
 )
 
 // TestDeclarationLoads checks that the diagnostics page is accepted as declared

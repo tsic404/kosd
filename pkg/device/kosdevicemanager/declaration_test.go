@@ -3,7 +3,7 @@ package kosdevicemanager
 import (
 	"testing"
 
-	"github.com/tsic404/kos/pkg/extension"
+	"github.com/tsic404/kosd/pkg/extension"
 )
 
 // TestDeclarationLoads checks that the device page is accepted as declared, is

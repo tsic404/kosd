@@ -4,8 +4,8 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/tsic404/kos/pkg/controlplane"
-	"github.com/tsic404/kos/pkg/extension"
+	"github.com/tsic404/kosd/pkg/controlplane"
+	"github.com/tsic404/kosd/pkg/extension"
 )
 
 // TestDeclarationLoads checks that the product's contribution is accepted as

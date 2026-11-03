@@ -13,9 +13,9 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
-	"github.com/tsic404/kos/pkg/app"
-	"github.com/tsic404/kos/pkg/state"
-	"github.com/tsic404/kos/tests/acceptance/harness"
+	"github.com/tsic404/kosd/pkg/app"
+	"github.com/tsic404/kosd/pkg/state"
+	"github.com/tsic404/kosd/tests/acceptance/harness"
 )
 
 // claimTemplatePackage renders a StatefulSet that brings its own volume claim

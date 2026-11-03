@@ -10,7 +10,7 @@
 package notification
 
 import (
-	"github.com/tsic404/kos/pkg/extension"
+	"github.com/tsic404/kosd/pkg/extension"
 )
 
 // The package identity and the surface its declaration names (C-17, C-18).

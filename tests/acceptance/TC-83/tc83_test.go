@@ -11,9 +11,9 @@ import (
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
-	"github.com/tsic404/kos/api/v1beta1"
-	"github.com/tsic404/kos/pkg/device"
-	"github.com/tsic404/kos/tests/acceptance/harness"
+	"github.com/tsic404/kosd/api/v1beta1"
+	"github.com/tsic404/kosd/pkg/device"
+	"github.com/tsic404/kosd/tests/acceptance/harness"
 )
 
 // TestTC83Occupancy puts one disk into a storage pool and leaves its twin

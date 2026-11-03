@@ -6,10 +6,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/tsic404/kos/pkg/controlplane"
-	"github.com/tsic404/kos/pkg/extension"
-	"github.com/tsic404/kos/pkg/identity"
-	"github.com/tsic404/kos/pkg/write"
+	"github.com/tsic404/kosd/pkg/controlplane"
+	"github.com/tsic404/kosd/pkg/extension"
+	"github.com/tsic404/kosd/pkg/identity"
+	"github.com/tsic404/kosd/pkg/write"
 )
 
 // declarations is a fixed page projection.

@@ -10,8 +10,8 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
-	"github.com/tsic404/kos/api"
-	"github.com/tsic404/kos/pkg/controlplane"
+	"github.com/tsic404/kosd/api"
+	"github.com/tsic404/kosd/pkg/controlplane"
 )
 
 // scalableWorkloads are the rendered kinds maintenance can drive to zero (C-66).

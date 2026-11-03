@@ -17,11 +17,11 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/client-go/kubernetes"
 
-	"github.com/tsic404/kos/api/v1beta1"
-	"github.com/tsic404/kos/pkg/identity"
-	"github.com/tsic404/kos/pkg/install"
-	"github.com/tsic404/kos/pkg/write"
-	"github.com/tsic404/kos/tests/acceptance/harness"
+	"github.com/tsic404/kosd/api/v1beta1"
+	"github.com/tsic404/kosd/pkg/identity"
+	"github.com/tsic404/kosd/pkg/install"
+	"github.com/tsic404/kosd/pkg/write"
+	"github.com/tsic404/kosd/tests/acceptance/harness"
 )
 
 // provisioner registers the declared nodes, the way the run kernel does on a

@@ -7,8 +7,8 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/tsic404/kos/api/v1beta1"
-	"github.com/tsic404/kos/pkg/state"
+	"github.com/tsic404/kosd/api/v1beta1"
+	"github.com/tsic404/kosd/pkg/state"
 )
 
 // Component phases the install pipeline writes (C-28). The seven values keep

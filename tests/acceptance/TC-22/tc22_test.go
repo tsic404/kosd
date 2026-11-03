@@ -13,9 +13,9 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/tsic404/kos/api"
-	"github.com/tsic404/kos/pkg/install"
-	"github.com/tsic404/kos/tests/acceptance/harness"
+	"github.com/tsic404/kosd/api"
+	"github.com/tsic404/kosd/pkg/install"
+	"github.com/tsic404/kosd/tests/acceptance/harness"
 )
 
 const quietWindow = 200 * time.Millisecond

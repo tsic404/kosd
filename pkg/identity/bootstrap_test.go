@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/tsic404/kos/pkg/controlplane"
-	"github.com/tsic404/kos/pkg/write"
+	"github.com/tsic404/kosd/pkg/controlplane"
+	"github.com/tsic404/kosd/pkg/write"
 )
 
 // bootstrapHarness is one control-plane database a case can restart.

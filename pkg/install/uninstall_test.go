@@ -10,8 +10,8 @@ import (
 	"k8s.io/client-go/dynamic/fake"
 	k8stesting "k8s.io/client-go/testing"
 
-	"github.com/tsic404/kos/api"
-	"github.com/tsic404/kos/pkg/extension"
+	"github.com/tsic404/kosd/api"
+	"github.com/tsic404/kosd/pkg/extension"
 )
 
 // TestUninstallRefusesUnreadableExtensionClasses pins C-54: a leftover list

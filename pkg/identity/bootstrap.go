@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/tsic404/kos/pkg/write"
+	"github.com/tsic404/kosd/pkg/write"
 )
 
 // BootstrapWindowLength is how long the first-Owner claim window stays open

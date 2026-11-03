@@ -21,13 +21,13 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic"
 
-	"github.com/tsic404/kos/api"
-	"github.com/tsic404/kos/api/v1beta1"
-	"github.com/tsic404/kos/pkg/app"
-	"github.com/tsic404/kos/pkg/controlplane"
-	"github.com/tsic404/kos/pkg/extension"
-	"github.com/tsic404/kos/pkg/identity"
-	"github.com/tsic404/kos/pkg/write"
+	"github.com/tsic404/kosd/api"
+	"github.com/tsic404/kosd/api/v1beta1"
+	"github.com/tsic404/kosd/pkg/app"
+	"github.com/tsic404/kosd/pkg/controlplane"
+	"github.com/tsic404/kosd/pkg/extension"
+	"github.com/tsic404/kosd/pkg/identity"
+	"github.com/tsic404/kosd/pkg/write"
 )
 
 // Labels the catalogue sync writes on the definitions it creates (C-24). They

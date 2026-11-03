@@ -5,8 +5,8 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/tsic404/kos/pkg/controlplane"
-	"github.com/tsic404/kos/pkg/write"
+	"github.com/tsic404/kosd/pkg/controlplane"
+	"github.com/tsic404/kosd/pkg/write"
 )
 
 // TestEventVisibilityFollowsTheSubject pins C-64's event rule: an application's

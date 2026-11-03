@@ -9,9 +9,9 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
-	"github.com/tsic404/kos/api"
-	"github.com/tsic404/kos/api/v1beta1"
-	"github.com/tsic404/kos/pkg/markers"
+	"github.com/tsic404/kosd/api"
+	"github.com/tsic404/kosd/api/v1beta1"
+	"github.com/tsic404/kosd/pkg/markers"
 )
 
 // objectState builds one snapshot entry with the given labels and fields.
@@ -46,10 +46,10 @@ func TestVerdictAppliesTheWriterWhitelist(t *testing.T) {
 	extensionRoleKey := ObjectKey{Group: "rbac.authorization.k8s.io", Kind: "Role", Namespace: "kube-system", Name: "widgets-reader"}
 	after := snapshotOf(map[ObjectKey]ObjectState{
 		downstreamKey: objectState(
-			map[string]string{markers.ManagedBy: "kos-shell", markers.OwnerUID: "app-uid"},
+			map[string]string{markers.ManagedBy: "kosd", markers.OwnerUID: "app-uid"},
 			map[string]string{"spec.replicas": "2"},
 		),
-		statefulKey: objectState(map[string]string{markers.ManagedBy: "kos-shell"}, nil),
+		statefulKey: objectState(map[string]string{markers.ManagedBy: "kosd"}, nil),
 		roleBindingKey: objectState(nil, map[string]string{
 			"roleRef.apiGroup": "rbac.authorization.k8s.io",
 			"roleRef.kind":     "ClusterRole",
@@ -61,7 +61,7 @@ func TestVerdictAppliesTheWriterWhitelist(t *testing.T) {
 			"roleRef.name":     ControlPlaneName,
 		}),
 		extensionRoleKey: objectState(
-			map[string]string{markers.ManagedBy: "kos-shell", markers.OwnerUID: "component-uid"}, nil,
+			map[string]string{markers.ManagedBy: "kosd", markers.OwnerUID: "component-uid"}, nil,
 		),
 	})
 

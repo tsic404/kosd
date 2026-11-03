@@ -1,6 +1,6 @@
 package state
 
-import "github.com/tsic404/kos/api/v1beta1"
+import "github.com/tsic404/kosd/api/v1beta1"
 
 // HealthInput is the observed fact set one health evaluation reads (C-08).
 // Callers pass the object's current facts; no field is inferred from phase.

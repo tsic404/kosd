@@ -8,10 +8,10 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/tsic404/kos/pkg/extension"
-	"github.com/tsic404/kos/pkg/pages"
-	"github.com/tsic404/kos/pkg/settings/kossettings"
-	"github.com/tsic404/kos/tests/acceptance/harness"
+	"github.com/tsic404/kosd/pkg/extension"
+	"github.com/tsic404/kosd/pkg/pages"
+	"github.com/tsic404/kosd/pkg/settings/kossettings"
+	"github.com/tsic404/kosd/tests/acceptance/harness"
 )
 
 const (

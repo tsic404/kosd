@@ -5,7 +5,7 @@
 // and the irreversible-upgrade warnings.
 package kosupdater
 
-import "github.com/tsic404/kos/pkg/extension"
+import "github.com/tsic404/kosd/pkg/extension"
 
 // Identifier is the product's extension identity across versions (C-17).
 const Identifier = "kos-updater"

@@ -5,8 +5,8 @@ import (
 
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
-	"github.com/tsic404/kos/api"
-	"github.com/tsic404/kos/api/v1beta1"
+	"github.com/tsic404/kosd/api"
+	"github.com/tsic404/kosd/api/v1beta1"
 )
 
 // ObjectRef identifies one domain object. It is the identifier a client keeps

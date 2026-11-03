@@ -12,8 +12,8 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
-	"github.com/tsic404/kos/api/v1beta1"
-	"github.com/tsic404/kos/pkg/write"
+	"github.com/tsic404/kosd/api/v1beta1"
+	"github.com/tsic404/kosd/pkg/write"
 )
 
 // TestSpecDigestCoversTheUpgradeInput covers C-34: the digest an upgrade answers
@@ -459,7 +459,7 @@ func TestObservedRenderDigestIsAnObservation(t *testing.T) {
 	}
 	live := manifest.DeepCopy()
 	live.SetResourceVersion("42")
-	live.SetLabels(map[string]string{"managed-by": "kos-shell", "kos.tsic.top/owner": "uid-1"})
+	live.SetLabels(map[string]string{"managed-by": "kosd", "kos.tsic.top/owner": "uid-1"})
 	key := "ConfigMap|apps|web"
 
 	observed := func(objects map[string]*unstructured.Unstructured) string {

@@ -3,7 +3,7 @@ package write
 import (
 	"sort"
 
-	"github.com/tsic404/kos/pkg/markers"
+	"github.com/tsic404/kosd/pkg/markers"
 )
 
 // This file is the writer allocation of C-03 and C-04 written as data: every

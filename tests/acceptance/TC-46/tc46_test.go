@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/tsic404/kos/pkg/app/builtin"
-	"github.com/tsic404/kos/tests/acceptance/harness"
+	"github.com/tsic404/kosd/pkg/app/builtin"
+	"github.com/tsic404/kosd/tests/acceptance/harness"
 )
 
 const targetNamespace = "apps"
@@ -27,10 +27,10 @@ func TestTC46PrivateConfigFieldBoundary(t *testing.T) {
 
 	// The endpoint is only the owner of the reserved config fields; it still
 	// has to satisfy the endpoint shape C-43 requires.
-	endpoint := harness.Manifest("Endpoint", harness.Namespace, "front", map[string]string{"managed-by": "kos-shell"}, nil)
+	endpoint := harness.Manifest("Endpoint", harness.Namespace, "front", map[string]string{"managed-by": "kosd"}, nil)
 	endpoint["spec"] = map[string]any{"kind": "http.host", "targetApp": "web", "host": "front.example.test"}
 	for _, manifest := range []map[string]any{
-		harness.Manifest("Volume", harness.Namespace, "data", map[string]string{"managed-by": "kos-shell"}, nil),
+		harness.Manifest("Volume", harness.Namespace, "data", map[string]string{"managed-by": "kosd"}, nil),
 		endpoint,
 	} {
 		kind := harness.String(manifest, "kind")

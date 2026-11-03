@@ -12,7 +12,7 @@ import (
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
-	"github.com/tsic404/kos/tests/acceptance/harness"
+	"github.com/tsic404/kosd/tests/acceptance/harness"
 )
 
 // ownerUID is the install scope the plan is bounded to.
@@ -30,7 +30,7 @@ func TestTC35PlanMatchesExecution(t *testing.T) {
 	// confirmation, so the plan must keep it and say so (C-39, F5).
 	cluster.Create(t, &unstructured.Unstructured{Object: harness.Manifest(
 		"Volume", harness.Namespace, "data",
-		map[string]string{"managed-by": "kos-shell", "owner-uid": ownerUID}, nil)})
+		map[string]string{"managed-by": "kosd", "owner-uid": ownerUID}, nil)})
 
 	gateway := cluster.StartControlPlane(t, nil)
 
@@ -146,7 +146,7 @@ func setRequest(objects ...map[string]any) map[string]any {
 // object builds a desired system component of the install.
 func object(name string, annotations map[string]any) map[string]any {
 	manifest := harness.Manifest("SystemComponent", "", name,
-		map[string]string{"managed-by": "kos-shell", "owner-uid": ownerUID}, nil)
+		map[string]string{"managed-by": "kosd", "owner-uid": ownerUID}, nil)
 	if annotations != nil {
 		manifest["metadata"].(map[string]any)["annotations"] = annotations
 	}

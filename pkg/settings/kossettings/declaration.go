@@ -8,8 +8,8 @@ package kossettings
 import (
 	"net/http"
 
-	"github.com/tsic404/kos/pkg/extension"
-	"github.com/tsic404/kos/pkg/write"
+	"github.com/tsic404/kosd/pkg/extension"
+	"github.com/tsic404/kosd/pkg/write"
 )
 
 // Identifier is the product's extension identity across versions (C-17).

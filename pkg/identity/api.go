@@ -12,10 +12,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/tsic404/kos/api"
-	"github.com/tsic404/kos/pkg/access"
-	"github.com/tsic404/kos/pkg/controlplane"
-	"github.com/tsic404/kos/pkg/write"
+	"github.com/tsic404/kosd/api"
+	"github.com/tsic404/kosd/pkg/access"
+	"github.com/tsic404/kosd/pkg/controlplane"
+	"github.com/tsic404/kosd/pkg/write"
 )
 
 // maxBodyBytes bounds one request body, matching the control plane's limit.

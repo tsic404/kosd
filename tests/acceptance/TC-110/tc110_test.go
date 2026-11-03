@@ -12,10 +12,10 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
-	"github.com/tsic404/kos/pkg/extension"
-	"github.com/tsic404/kos/pkg/reconcile"
-	"github.com/tsic404/kos/pkg/write"
-	"github.com/tsic404/kos/tests/acceptance/harness"
+	"github.com/tsic404/kosd/pkg/extension"
+	"github.com/tsic404/kosd/pkg/reconcile"
+	"github.com/tsic404/kosd/pkg/write"
+	"github.com/tsic404/kosd/tests/acceptance/harness"
 )
 
 const (

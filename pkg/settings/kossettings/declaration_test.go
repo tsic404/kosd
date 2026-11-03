@@ -8,10 +8,10 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 
-	"github.com/tsic404/kos/api"
-	"github.com/tsic404/kos/pkg/controlplane"
-	"github.com/tsic404/kos/pkg/extension"
-	"github.com/tsic404/kos/pkg/identity"
+	"github.com/tsic404/kosd/api"
+	"github.com/tsic404/kosd/pkg/controlplane"
+	"github.com/tsic404/kosd/pkg/extension"
+	"github.com/tsic404/kosd/pkg/identity"
 )
 
 // TestDeclarationLoads checks the product declares what C-36 and C-50 put in

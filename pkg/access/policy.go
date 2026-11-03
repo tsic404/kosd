@@ -14,10 +14,10 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/labels"
 
-	"github.com/tsic404/kos/api"
-	"github.com/tsic404/kos/api/v1beta1"
-	"github.com/tsic404/kos/pkg/controlplane"
-	"github.com/tsic404/kos/pkg/write"
+	"github.com/tsic404/kosd/api"
+	"github.com/tsic404/kosd/api/v1beta1"
+	"github.com/tsic404/kosd/pkg/controlplane"
+	"github.com/tsic404/kosd/pkg/write"
 )
 
 // Session is the identity behind one request: the account name and the role

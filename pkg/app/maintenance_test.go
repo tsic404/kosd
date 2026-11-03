@@ -15,10 +15,10 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
-	"github.com/tsic404/kos/api"
-	"github.com/tsic404/kos/api/v1beta1"
-	"github.com/tsic404/kos/pkg/reconcile"
-	"github.com/tsic404/kos/pkg/write"
+	"github.com/tsic404/kosd/api"
+	"github.com/tsic404/kosd/api/v1beta1"
+	"github.com/tsic404/kosd/pkg/reconcile"
+	"github.com/tsic404/kosd/pkg/write"
 )
 
 // maintenanceTemplate renders the two-replica workload a maintenance stop

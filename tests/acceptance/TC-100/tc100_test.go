@@ -14,17 +14,17 @@ import (
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
-	"github.com/tsic404/kos/api/v1beta1"
-	"github.com/tsic404/kos/pkg/app/kostaskmanager"
-	"github.com/tsic404/kos/pkg/controlplane"
-	"github.com/tsic404/kos/pkg/device/kosdevicemanager"
-	"github.com/tsic404/kos/pkg/diagnostics/kosdiagnostics"
-	"github.com/tsic404/kos/pkg/endpoint/kosnetwork"
-	"github.com/tsic404/kos/pkg/extension"
-	"github.com/tsic404/kos/pkg/extension/kosupdater"
-	"github.com/tsic404/kos/pkg/pages"
-	"github.com/tsic404/kos/pkg/volume/kosstorage"
-	"github.com/tsic404/kos/tests/acceptance/harness"
+	"github.com/tsic404/kosd/api/v1beta1"
+	"github.com/tsic404/kosd/pkg/app/kostaskmanager"
+	"github.com/tsic404/kosd/pkg/controlplane"
+	"github.com/tsic404/kosd/pkg/device/kosdevicemanager"
+	"github.com/tsic404/kosd/pkg/diagnostics/kosdiagnostics"
+	"github.com/tsic404/kosd/pkg/endpoint/kosnetwork"
+	"github.com/tsic404/kosd/pkg/extension"
+	"github.com/tsic404/kosd/pkg/extension/kosupdater"
+	"github.com/tsic404/kosd/pkg/pages"
+	"github.com/tsic404/kosd/pkg/volume/kosstorage"
+	"github.com/tsic404/kosd/tests/acceptance/harness"
 )
 
 const (

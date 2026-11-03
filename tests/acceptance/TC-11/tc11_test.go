@@ -14,13 +14,13 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
-	"github.com/tsic404/kos/api"
-	"github.com/tsic404/kos/pkg/adoption"
-	"github.com/tsic404/kos/pkg/controlplane"
-	"github.com/tsic404/kos/pkg/discovery"
-	"github.com/tsic404/kos/pkg/markers"
-	"github.com/tsic404/kos/pkg/write"
-	"github.com/tsic404/kos/tests/acceptance/harness"
+	"github.com/tsic404/kosd/api"
+	"github.com/tsic404/kosd/pkg/adoption"
+	"github.com/tsic404/kosd/pkg/controlplane"
+	"github.com/tsic404/kosd/pkg/discovery"
+	"github.com/tsic404/kosd/pkg/markers"
+	"github.com/tsic404/kosd/pkg/write"
+	"github.com/tsic404/kosd/tests/acceptance/harness"
 )
 
 // TestTC11DiscoveryDoesNotAdopt discovers an existing workload and an existing

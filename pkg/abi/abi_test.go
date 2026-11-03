@@ -8,7 +8,7 @@ import (
 
 	"sigs.k8s.io/yaml"
 
-	"github.com/tsic404/kos/pkg/abi"
+	"github.com/tsic404/kosd/pkg/abi"
 )
 
 const crdDir = "../../config/crd"

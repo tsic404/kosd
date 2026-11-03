@@ -9,10 +9,10 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
-	"github.com/tsic404/kos/api"
-	"github.com/tsic404/kos/api/v1beta1"
-	"github.com/tsic404/kos/pkg/markers"
-	"github.com/tsic404/kos/pkg/write"
+	"github.com/tsic404/kosd/api"
+	"github.com/tsic404/kosd/api/v1beta1"
+	"github.com/tsic404/kosd/pkg/markers"
+	"github.com/tsic404/kosd/pkg/write"
 )
 
 // The two downstream kinds C-43 maps the endpoint shapes to.

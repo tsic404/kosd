@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/tsic404/kos/pkg/conformance"
+	"github.com/tsic404/kosd/pkg/conformance"
 )
 
 // registered builds the registration of one standard capability, with the

@@ -8,10 +8,10 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
-	"github.com/tsic404/kos/api/v1beta1"
-	"github.com/tsic404/kos/pkg/nodehealth"
-	"github.com/tsic404/kos/pkg/reconcile"
-	"github.com/tsic404/kos/pkg/state"
+	"github.com/tsic404/kosd/api/v1beta1"
+	"github.com/tsic404/kosd/pkg/nodehealth"
+	"github.com/tsic404/kosd/pkg/reconcile"
+	"github.com/tsic404/kosd/pkg/state"
 )
 
 // Native kinds and the policy the volume resolves its binding from.

@@ -1,6 +1,6 @@
 package controlplane
 
-import "github.com/tsic404/kos/api/v1beta1"
+import "github.com/tsic404/kosd/api/v1beta1"
 
 // ExtensionKinds reports the object classes active extension components serve
 // (C-19). A control plane without loaded extensions serves kernel kinds only.

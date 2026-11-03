@@ -21,8 +21,8 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic"
 
-	"github.com/tsic404/kos/pkg/controlplane"
-	"github.com/tsic404/kos/tests/acceptance/harness"
+	"github.com/tsic404/kosd/pkg/controlplane"
+	"github.com/tsic404/kosd/tests/acceptance/harness"
 )
 
 // batchSize is large enough that the writes of an apply are still running when
@@ -70,7 +70,7 @@ func TestTC29FailureFields(t *testing.T) {
 			method: http.MethodPost,
 			path:   "/api/v1/resources/Application",
 			body: harness.Manifest("Application", harness.Namespace, "forbidden",
-				map[string]string{"managed-by": "kos-shell"}, nil),
+				map[string]string{"managed-by": "kosd"}, nil),
 			status: http.StatusForbidden, code: controlplane.CodePermissionDenied,
 			stage: string(controlplane.StageAuthorize), retryable: false, actionable: true,
 		},
@@ -80,7 +80,7 @@ func TestTC29FailureFields(t *testing.T) {
 			path:   "/api/v1/resources/Application",
 			body: func() map[string]any {
 				manifest := harness.Manifest("Application", harness.Namespace, "invalid",
-					map[string]string{"managed-by": "kos-shell"}, nil)
+					map[string]string{"managed-by": "kosd"}, nil)
 				manifest["spec"] = map[string]any{"replicaCount": 3}
 				return manifest
 			}(),
@@ -110,7 +110,7 @@ func TestTC29FailureFields(t *testing.T) {
 	}
 
 	t.Run("concurrent conflict", func(t *testing.T) {
-		labels := map[string]string{"managed-by": "kos-shell"}
+		labels := map[string]string{"managed-by": "kosd"}
 		if status, body := gateway.Call(t, http.MethodPost, "/api/v1/resources/Application",
 			harness.Manifest("Application", harness.Namespace, "contended", labels, nil), nil); status != http.StatusAccepted {
 			t.Fatalf("create the contended application: status %d, body %v", status, body)
@@ -137,7 +137,7 @@ func TestTC29DisconnectedClientStillReachesTerminalState(t *testing.T) {
 	for index := range batchSize {
 		desired = append(desired, harness.Manifest("SystemComponent", "",
 			fmt.Sprintf("bulk-%02d", index),
-			map[string]string{"managed-by": "kos-shell", "example.test/batch": "disconnect"}, nil))
+			map[string]string{"managed-by": "kosd", "example.test/batch": "disconnect"}, nil))
 	}
 
 	address := strings.TrimPrefix(gateway.URL, "http://")
@@ -259,7 +259,7 @@ func TestTC29ConcurrentWritesMeetTheAPIServer(t *testing.T) {
 	cluster := harness.Start(t)
 	create := func(name string) *unstructured.Unstructured {
 		return cluster.Create(t, &unstructured.Unstructured{Object: harness.Manifest(
-			"Application", harness.Namespace, name, map[string]string{"managed-by": "kos-shell"}, nil)})
+			"Application", harness.Namespace, name, map[string]string{"managed-by": "kosd"}, nil)})
 	}
 	start := func(name string) (*harness.ControlPlane, *competingWriter) {
 		writer := &competingWriter{
@@ -277,7 +277,7 @@ func TestTC29ConcurrentWritesMeetTheAPIServer(t *testing.T) {
 		created := create(name)
 		gateway, writer := start(name)
 		desired := harness.Manifest("Application", harness.Namespace, name,
-			map[string]string{"managed-by": "kos-shell"}, map[string]string{"example.test/version": "v2"})
+			map[string]string{"managed-by": "kosd"}, map[string]string{"example.test/version": "v2"})
 
 		status, body := gateway.Call(t, http.MethodPut,
 			"/api/v1/resources/Application/"+name+"?namespace="+harness.Namespace,

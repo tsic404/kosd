@@ -1,4 +1,4 @@
-module github.com/tsic404/kos
+module github.com/tsic404/kosd
 
 go 1.26.0
 

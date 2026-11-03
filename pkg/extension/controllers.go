@@ -9,9 +9,9 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
-	"github.com/tsic404/kos/api/v1beta1"
-	"github.com/tsic404/kos/pkg/reconcile"
-	"github.com/tsic404/kos/pkg/state"
+	"github.com/tsic404/kosd/api/v1beta1"
+	"github.com/tsic404/kosd/pkg/reconcile"
+	"github.com/tsic404/kosd/pkg/state"
 )
 
 // DefaultFailureThreshold is how many consecutive failed rounds make a

@@ -11,11 +11,11 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
-	"github.com/tsic404/kos/api"
-	"github.com/tsic404/kos/pkg/endpoint"
-	"github.com/tsic404/kos/pkg/reconcile"
-	"github.com/tsic404/kos/pkg/state"
-	"github.com/tsic404/kos/pkg/write"
+	"github.com/tsic404/kosd/api"
+	"github.com/tsic404/kosd/pkg/endpoint"
+	"github.com/tsic404/kosd/pkg/reconcile"
+	"github.com/tsic404/kosd/pkg/state"
+	"github.com/tsic404/kosd/pkg/write"
 )
 
 // Endpoint returns a namespaced endpoint with the given attribution labels and

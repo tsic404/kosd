@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/tsic404/kos/pkg/write"
+	"github.com/tsic404/kosd/pkg/write"
 )
 
 // newTestServiceWithStore opens a private database and returns the store as

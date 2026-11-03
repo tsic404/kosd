@@ -12,7 +12,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic"
 
-	"github.com/tsic404/kos/pkg/write"
+	"github.com/tsic404/kosd/pkg/write"
 )
 
 // Store is the object access one migration round needs. NewWriterStore is the
@@ -151,7 +151,7 @@ func (s *WriterStore) RecordEvent(ctx context.Context, involved *unstructured.Un
 		Type:                eventType,
 		Action:              reason,
 		ReportingController: "kos.tsic.top/migration-reconciler",
-		ReportingInstance:   "kos-shell",
+		ReportingInstance:   "kosd",
 		FirstTimestamp:      occurred,
 		LastTimestamp:       occurred,
 		Count:               1,

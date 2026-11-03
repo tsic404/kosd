@@ -8,7 +8,7 @@ import (
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 
-	"github.com/tsic404/kos/api"
+	"github.com/tsic404/kosd/api"
 )
 
 // NodeMaintenance is the node maintenance flow the API exposes (C-65). The four

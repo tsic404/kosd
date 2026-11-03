@@ -3,8 +3,8 @@ package state_test
 import (
 	"testing"
 
-	"github.com/tsic404/kos/api/v1beta1"
-	"github.com/tsic404/kos/pkg/state"
+	"github.com/tsic404/kosd/api/v1beta1"
+	"github.com/tsic404/kosd/pkg/state"
 )
 
 func TestEvaluateHealth(t *testing.T) {

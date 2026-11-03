@@ -12,8 +12,8 @@ import (
 
 	"sigs.k8s.io/yaml"
 
-	"github.com/tsic404/kos/api/v1beta1"
-	"github.com/tsic404/kos/pkg/app"
+	"github.com/tsic404/kosd/api/v1beta1"
+	"github.com/tsic404/kosd/pkg/app"
 )
 
 //go:embed definitions/*.yaml

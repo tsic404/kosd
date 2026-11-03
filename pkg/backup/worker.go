@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/tsic404/kos/api/v1beta1"
+	"github.com/tsic404/kosd/api/v1beta1"
 )
 
 // Kinds of long data actions the backup component executes for a reconciler

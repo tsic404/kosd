@@ -21,10 +21,10 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic"
 
-	"github.com/tsic404/kos/pkg/controlplane"
-	"github.com/tsic404/kos/pkg/reconcile"
-	"github.com/tsic404/kos/pkg/state"
-	"github.com/tsic404/kos/pkg/write"
+	"github.com/tsic404/kosd/pkg/controlplane"
+	"github.com/tsic404/kosd/pkg/reconcile"
+	"github.com/tsic404/kosd/pkg/state"
+	"github.com/tsic404/kosd/pkg/write"
 )
 
 // EventWindow is the window C-64 fixes for every event read: an event outside

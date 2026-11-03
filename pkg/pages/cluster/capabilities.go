@@ -1,9 +1,9 @@
 package cluster
 
 import (
-	"github.com/tsic404/kos/api/v1beta1"
-	"github.com/tsic404/kos/pkg/app"
-	"github.com/tsic404/kos/pkg/provider"
+	"github.com/tsic404/kosd/api/v1beta1"
+	"github.com/tsic404/kosd/pkg/app"
+	"github.com/tsic404/kosd/pkg/provider"
 )
 
 // Gap is one unmet capability requirement of C-11's comparison.

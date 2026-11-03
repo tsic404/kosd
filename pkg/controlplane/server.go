@@ -16,9 +16,9 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/dynamic"
 
-	"github.com/tsic404/kos/pkg/budget"
-	"github.com/tsic404/kos/pkg/degrade"
-	"github.com/tsic404/kos/pkg/endpoint"
+	"github.com/tsic404/kosd/pkg/budget"
+	"github.com/tsic404/kosd/pkg/degrade"
+	"github.com/tsic404/kosd/pkg/endpoint"
 )
 
 // Verb names what a request does, so one decision covers reads, writes and

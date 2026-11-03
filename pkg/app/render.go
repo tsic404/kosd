@@ -13,7 +13,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	utilyaml "k8s.io/apimachinery/pkg/util/yaml"
 
-	"github.com/tsic404/kos/api/v1beta1"
+	"github.com/tsic404/kosd/api/v1beta1"
 )
 
 // InvalidPackage marks a package that violates C-32: a storage class it may not

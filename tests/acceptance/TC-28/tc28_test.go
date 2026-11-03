@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/tsic404/kos/tests/acceptance/harness"
+	"github.com/tsic404/kosd/tests/acceptance/harness"
 )
 
 // TestTC28RepeatedUpdateAndDeleteConverge submits one update body twice and one
@@ -19,11 +19,11 @@ func TestTC28RepeatedUpdateAndDeleteConverge(t *testing.T) {
 	path := "/api/v1/resources/Application/worker?namespace=" + harness.Namespace
 
 	if status, body := gateway.Call(t, http.MethodPost, "/api/v1/resources/Application",
-		harness.Manifest("Application", harness.Namespace, "worker", map[string]string{"managed-by": "kos-shell"}, nil), nil); status != http.StatusAccepted {
+		harness.Manifest("Application", harness.Namespace, "worker", map[string]string{"managed-by": "kosd"}, nil), nil); status != http.StatusAccepted {
 		t.Fatalf("create: status %d, body %v", status, body)
 	}
 	update := harness.Manifest("Application", harness.Namespace, "worker",
-		map[string]string{"managed-by": "kos-shell"}, map[string]string{"example.test/version": "v2"})
+		map[string]string{"managed-by": "kosd"}, map[string]string{"example.test/version": "v2"})
 	precondition := map[string]string{"If-Match": cluster.Get(t, "v1beta1", "Application", "worker").GetResourceVersion()}
 
 	if status, body := gateway.Call(t, http.MethodPut, path, update, precondition); status != http.StatusAccepted {
@@ -63,7 +63,7 @@ func TestTC28RepeatedCreateProducesOneObject(t *testing.T) {
 	cluster := harness.Start(t)
 	gateway := cluster.StartControlPlane(t, nil)
 	manifest := harness.Manifest("Application", harness.Namespace, "web",
-		map[string]string{"managed-by": "kos-shell"}, map[string]string{"example.test/note": "idempotency"})
+		map[string]string{"managed-by": "kosd"}, map[string]string{"example.test/note": "idempotency"})
 
 	firstStatus, first := gateway.Call(t, http.MethodPost, "/api/v1/resources/Application", manifest, nil)
 	if firstStatus != http.StatusAccepted {

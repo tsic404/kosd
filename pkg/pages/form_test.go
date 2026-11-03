@@ -5,8 +5,8 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/tsic404/kos/api/v1beta1"
-	"github.com/tsic404/kos/pkg/app"
+	"github.com/tsic404/kosd/api/v1beta1"
+	"github.com/tsic404/kosd/pkg/app"
 )
 
 // TestFormOfLaysOutTheDeclaredStructure checks that the form is generated from

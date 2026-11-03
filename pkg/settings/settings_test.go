@@ -5,10 +5,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/tsic404/kos/pkg/controlplane"
-	"github.com/tsic404/kos/pkg/extension"
-	"github.com/tsic404/kos/pkg/identity"
-	"github.com/tsic404/kos/pkg/write"
+	"github.com/tsic404/kosd/pkg/controlplane"
+	"github.com/tsic404/kosd/pkg/extension"
+	"github.com/tsic404/kosd/pkg/identity"
+	"github.com/tsic404/kosd/pkg/write"
 )
 
 // memoryValues is a value store that answers from a map.

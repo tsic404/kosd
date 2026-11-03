@@ -11,11 +11,11 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
-	"github.com/tsic404/kos/api"
-	"github.com/tsic404/kos/pkg/app"
-	"github.com/tsic404/kos/pkg/app/builtin"
-	"github.com/tsic404/kos/pkg/reconcile"
-	"github.com/tsic404/kos/tests/acceptance/harness"
+	"github.com/tsic404/kosd/api"
+	"github.com/tsic404/kosd/pkg/app"
+	"github.com/tsic404/kosd/pkg/app/builtin"
+	"github.com/tsic404/kosd/pkg/reconcile"
+	"github.com/tsic404/kosd/tests/acceptance/harness"
 )
 
 const (
@@ -39,7 +39,7 @@ func TestTC47UnknownAnnotationChangesNothing(t *testing.T) {
 		t.Fatalf("create application: status %d, body %v", status, body)
 	}
 	if status, body := gateway.Call(t, "POST", "/api/v1/resources/Volume",
-		harness.Manifest("Volume", harness.Namespace, "data", map[string]string{"managed-by": "kos-shell"}, nil), nil); status != 202 {
+		harness.Manifest("Volume", harness.Namespace, "data", map[string]string{"managed-by": "kosd"}, nil), nil); status != 202 {
 		t.Fatalf("create volume: status %d, body %v", status, body)
 	}
 

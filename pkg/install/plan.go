@@ -7,7 +7,7 @@ import (
 
 	"k8s.io/apimachinery/pkg/util/validation"
 
-	"github.com/tsic404/kos/api"
+	"github.com/tsic404/kosd/api"
 )
 
 // Names the installation writes. The control-plane workload and its service

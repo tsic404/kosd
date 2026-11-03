@@ -5,8 +5,8 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/tsic404/kos/api/v1beta1"
-	"github.com/tsic404/kos/pkg/conformance"
+	"github.com/tsic404/kosd/api/v1beta1"
+	"github.com/tsic404/kosd/pkg/conformance"
 )
 
 // TestRegistrationProblems pins the rules C-09 and C-47 put on a registration.

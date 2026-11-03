@@ -10,9 +10,9 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/tsic404/kos/pkg/app/builtin"
-	"github.com/tsic404/kos/pkg/extension"
-	"github.com/tsic404/kos/pkg/write"
+	"github.com/tsic404/kosd/pkg/app/builtin"
+	"github.com/tsic404/kosd/pkg/extension"
+	"github.com/tsic404/kosd/pkg/write"
 )
 
 const (

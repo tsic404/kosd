@@ -13,9 +13,9 @@ import (
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/dynamic"
 
-	"github.com/tsic404/kos/api"
-	"github.com/tsic404/kos/pkg/markers"
-	"github.com/tsic404/kos/pkg/state"
+	"github.com/tsic404/kosd/api"
+	"github.com/tsic404/kosd/pkg/markers"
+	"github.com/tsic404/kosd/pkg/state"
 )
 
 // WaitSettled waits for the observation points C-15 names: every object that

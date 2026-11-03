@@ -23,12 +23,12 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 
-	"github.com/tsic404/kos/pkg/budget"
-	"github.com/tsic404/kos/pkg/controlplane"
-	"github.com/tsic404/kos/pkg/identity"
-	"github.com/tsic404/kos/pkg/install"
-	"github.com/tsic404/kos/pkg/reconcile"
-	"github.com/tsic404/kos/tests/acceptance/harness"
+	"github.com/tsic404/kosd/pkg/budget"
+	"github.com/tsic404/kosd/pkg/controlplane"
+	"github.com/tsic404/kosd/pkg/identity"
+	"github.com/tsic404/kosd/pkg/install"
+	"github.com/tsic404/kosd/pkg/reconcile"
+	"github.com/tsic404/kosd/tests/acceptance/harness"
 )
 
 const fixtureApplications = 20

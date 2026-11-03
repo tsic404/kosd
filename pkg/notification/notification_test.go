@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/tsic404/kos/pkg/controlplane"
+	"github.com/tsic404/kosd/pkg/controlplane"
 )
 
 // TestParseChannelsRejectsMalformedValues checks that a setting the user has to

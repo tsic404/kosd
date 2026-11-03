@@ -5,7 +5,7 @@ import (
 
 	"k8s.io/apimachinery/pkg/labels"
 
-	"github.com/tsic404/kos/pkg/endpoint"
+	"github.com/tsic404/kosd/pkg/endpoint"
 )
 
 // TargetAppImmutable is the reason a rewrite of an endpoint's target

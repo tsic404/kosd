@@ -6,7 +6,7 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/tsic404/kos/tests/acceptance/harness"
+	"github.com/tsic404/kosd/tests/acceptance/harness"
 )
 
 // TestTC104DualVersionFieldParity creates one object per kernel kind, reads it

@@ -9,8 +9,8 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
-	"github.com/tsic404/kos/api"
-	"github.com/tsic404/kos/pkg/markers"
+	"github.com/tsic404/kosd/api"
+	"github.com/tsic404/kosd/pkg/markers"
 )
 
 // allSubjects is every subject the allocation tables know, written out so a
@@ -57,7 +57,7 @@ func stored(kind string, labels map[string]string) *unstructured.Unstructured {
 }
 
 // managedLabels is a managed object's attribution (C-02).
-var managedLabels = map[string]string{markers.ManagedBy: "kos-shell"}
+var managedLabels = map[string]string{markers.ManagedBy: "kosd"}
 
 // adoptedLabels is an adopted object's attribution (C-02).
 var adoptedLabels = map[string]string{markers.AdoptedBy: "alice", markers.AdoptionReason: "existing"}
@@ -333,11 +333,11 @@ func TestAttributionChanges(t *testing.T) {
 		want    bool
 	}{
 		{name: "unmanaged object is adopted", current: stored("Application", nil), key: markers.AdoptedBy, value: "alice", present: true, want: true},
-		{name: "unmanaged object cannot claim management", current: stored("Application", nil), key: markers.ManagedBy, value: "kos-shell", present: true},
+		{name: "unmanaged object cannot claim management", current: stored("Application", nil), key: markers.ManagedBy, value: "kosd", present: true},
 		{name: "adoption markers are written once", current: stored("Application", adoptedLabels), key: markers.AdoptedBy, value: "bob", present: true},
 		{name: "release removes adoption markers", current: stored("Application", adoptedLabels), key: markers.AdoptedBy, present: false, want: true},
 		{name: "managed attribution is fixed", current: stored("Application", managedLabels), key: markers.ManagedBy, value: "other", present: true},
-		{name: "managed attribution rewrite is a no-op", current: stored("Application", managedLabels), key: markers.ManagedBy, value: "kos-shell", present: true, want: true},
+		{name: "managed attribution rewrite is a no-op", current: stored("Application", managedLabels), key: markers.ManagedBy, value: "kosd", present: true, want: true},
 	}
 	for _, test := range cases {
 		t.Run(test.name, func(t *testing.T) {
@@ -370,7 +370,7 @@ func TestMarkerCarrier(t *testing.T) {
 		Object:  kernelRef("Application"),
 		Verb:    VerbApply,
 		Parts:   []Part{PartMarker},
-		Markers: []MarkerWrite{{Key: markers.ManagedBy, Carrier: markers.CarrierAnnotation, Value: "kos-shell", Present: true}},
+		Markers: []MarkerWrite{{Key: markers.ManagedBy, Carrier: markers.CarrierAnnotation, Value: "kosd", Present: true}},
 		Current: stored("Application", nil),
 	})
 	var denied *Denied

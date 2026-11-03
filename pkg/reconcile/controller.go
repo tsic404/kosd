@@ -10,7 +10,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"k8s.io/client-go/util/workqueue"
 
-	"github.com/tsic404/kos/pkg/budget"
+	"github.com/tsic404/kosd/pkg/budget"
 )
 
 // Options configures a Controller.

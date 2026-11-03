@@ -4,7 +4,7 @@
 // the certificate expiry alert of C-46.
 package kosnetwork
 
-import "github.com/tsic404/kos/pkg/extension"
+import "github.com/tsic404/kosd/pkg/extension"
 
 // Identifier is the product's extension identity across versions (C-17).
 const Identifier = "kos-network"

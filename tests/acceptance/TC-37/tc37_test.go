@@ -18,10 +18,10 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/tsic404/kos/api/v1beta1"
-	"github.com/tsic404/kos/pkg/app"
-	"github.com/tsic404/kos/pkg/identity"
-	"github.com/tsic404/kos/tests/acceptance/harness"
+	"github.com/tsic404/kosd/api/v1beta1"
+	"github.com/tsic404/kosd/pkg/app"
+	"github.com/tsic404/kosd/pkg/identity"
+	"github.com/tsic404/kosd/tests/acceptance/harness"
 )
 
 // secrets are distinctive enough that a substring match is decisive.

@@ -7,8 +7,8 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/types"
 
-	"github.com/tsic404/kos/api/v1beta1"
-	"github.com/tsic404/kos/pkg/markers"
+	"github.com/tsic404/kosd/api/v1beta1"
+	"github.com/tsic404/kosd/pkg/markers"
 )
 
 // endpointObject is a stored endpoint with the given UID and spec.
@@ -51,7 +51,7 @@ func TestIngressRouteCarriesTheHostPathAndBackend(t *testing.T) {
 	if ingress.GetName() != "site" || ingress.GetNamespace() != "default" {
 		t.Fatalf("route name = %s/%s", ingress.GetNamespace(), ingress.GetName())
 	}
-	if ingress.GetLabels()[markers.ManagedBy] != "kos-shell" || ingress.GetLabels()[markers.OwnerUID] != "uid-1" {
+	if ingress.GetLabels()[markers.ManagedBy] != "kosd" || ingress.GetLabels()[markers.OwnerUID] != "uid-1" {
 		t.Fatalf("route labels = %v, want attribution with the endpoint UID", ingress.GetLabels())
 	}
 

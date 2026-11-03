@@ -10,16 +10,16 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
-	"github.com/tsic404/kos/api/v1beta1"
-	"github.com/tsic404/kos/pkg/app"
-	"github.com/tsic404/kos/pkg/conformance"
-	"github.com/tsic404/kos/pkg/endpoint"
-	"github.com/tsic404/kos/pkg/extension"
-	"github.com/tsic404/kos/pkg/markers"
-	"github.com/tsic404/kos/pkg/provider"
-	"github.com/tsic404/kos/pkg/volume"
-	"github.com/tsic404/kos/pkg/write"
-	"github.com/tsic404/kos/tests/acceptance/harness"
+	"github.com/tsic404/kosd/api/v1beta1"
+	"github.com/tsic404/kosd/pkg/app"
+	"github.com/tsic404/kosd/pkg/conformance"
+	"github.com/tsic404/kosd/pkg/endpoint"
+	"github.com/tsic404/kosd/pkg/extension"
+	"github.com/tsic404/kosd/pkg/markers"
+	"github.com/tsic404/kosd/pkg/provider"
+	"github.com/tsic404/kosd/pkg/volume"
+	"github.com/tsic404/kosd/pkg/write"
+	"github.com/tsic404/kosd/tests/acceptance/harness"
 )
 
 const (

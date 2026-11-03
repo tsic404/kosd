@@ -5,9 +5,9 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/tsic404/kos/api/v1beta1"
-	"github.com/tsic404/kos/pkg/app"
-	"github.com/tsic404/kos/pkg/app/builtin"
+	"github.com/tsic404/kosd/api/v1beta1"
+	"github.com/tsic404/kosd/pkg/app"
+	"github.com/tsic404/kosd/pkg/app/builtin"
 )
 
 func TestBuiltinDefinitionsValidateAndRenderStably(t *testing.T) {

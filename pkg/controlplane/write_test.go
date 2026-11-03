@@ -14,7 +14,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	"k8s.io/client-go/dynamic"
 
-	"github.com/tsic404/kos/api"
+	"github.com/tsic404/kosd/api"
 )
 
 // writeRecorder is a cluster client that records what the write path submits and

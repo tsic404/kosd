@@ -64,7 +64,7 @@ func TestValidateRejectsMisplacedKeys(t *testing.T) {
 		wantErr     string
 	}{
 		"marker on annotations": {
-			annotations: map[string]string{ManagedBy: "kos-shell"},
+			annotations: map[string]string{ManagedBy: "kosd"},
 			wantErr:     `"managed-by" belongs on label, not annotation`,
 		},
 		"adopted-at on labels": {
@@ -73,26 +73,26 @@ func TestValidateRejectsMisplacedKeys(t *testing.T) {
 		},
 		"conflicting attribution": {
 			labels: map[string]string{
-				ManagedBy:      "kos-shell",
-				AdoptedBy:      "kos-shell",
+				ManagedBy:      "kosd",
+				AdoptedBy:      "kosd",
 				AdoptionReason: "operator",
 			},
 			wantErr: `"managed-by" and "adopted-by" are both present`,
 		},
 		"conflict with reason alone names the present key": {
 			labels: map[string]string{
-				ManagedBy:      "kos-shell",
+				ManagedBy:      "kosd",
 				AdoptionReason: "operator",
 			},
 			wantErr: `"managed-by" and "adoption-reason" are both present`,
 		},
 		"half adoption pair": {
-			labels:  map[string]string{AdoptedBy: "kos-shell"},
+			labels:  map[string]string{AdoptedBy: "kosd"},
 			wantErr: "incomplete adoption",
 		},
 		"adopted without adopted-at": {
 			labels: map[string]string{
-				AdoptedBy:      "kos-shell",
+				AdoptedBy:      "kosd",
 				AdoptionReason: "operator",
 			},
 			wantErr: `lacks the "adopted-at" annotation`,
@@ -101,7 +101,7 @@ func TestValidateRejectsMisplacedKeys(t *testing.T) {
 			annotations: map[string]string{"kubectl.kubernetes.io/last-applied-configuration": "{}"},
 		},
 		"managed with owner": {
-			labels: map[string]string{ManagedBy: "kos-shell", OwnerUID: "abc"},
+			labels: map[string]string{ManagedBy: "kosd", OwnerUID: "abc"},
 		},
 		"unmanaged": {},
 	}
@@ -127,9 +127,9 @@ func TestAttributionOf(t *testing.T) {
 		want    Attribution
 		wantErr bool
 	}{
-		"managed":               {labels: map[string]string{ManagedBy: "kos-shell"}, want: AttributionManaged},
+		"managed":               {labels: map[string]string{ManagedBy: "kosd"}, want: AttributionManaged},
 		"unmanaged":             {want: AttributionUnmanaged},
-		"adopted":               {labels: map[string]string{AdoptedBy: "kos-shell", AdoptionReason: "operator"}, want: AttributionAdopted},
+		"adopted":               {labels: map[string]string{AdoptedBy: "kosd", AdoptionReason: "operator"}, want: AttributionAdopted},
 		"declined is unmanaged": {labels: map[string]string{Declined: "true"}, want: AttributionUnmanaged},
 	}
 	for name, tc := range tests {

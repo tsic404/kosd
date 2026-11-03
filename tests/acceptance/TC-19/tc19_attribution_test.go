@@ -7,9 +7,9 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
-	"github.com/tsic404/kos/pkg/markers"
-	"github.com/tsic404/kos/pkg/write"
-	"github.com/tsic404/kos/tests/acceptance/harness"
+	"github.com/tsic404/kosd/pkg/markers"
+	"github.com/tsic404/kosd/pkg/write"
+	"github.com/tsic404/kosd/tests/acceptance/harness"
 )
 
 // TestTC19AttributionSurvivesRenders covers C-02's creator rule across a

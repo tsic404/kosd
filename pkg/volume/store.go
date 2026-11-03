@@ -8,7 +8,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic"
 
-	"github.com/tsic404/kos/pkg/write"
+	"github.com/tsic404/kosd/pkg/write"
 )
 
 // Store is the object access one volume round needs. NewWriterStore is the

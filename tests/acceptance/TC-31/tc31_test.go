@@ -10,9 +10,9 @@ import (
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
-	"github.com/tsic404/kos/pkg/controlplane"
-	"github.com/tsic404/kos/pkg/write"
-	"github.com/tsic404/kos/tests/acceptance/harness"
+	"github.com/tsic404/kosd/pkg/controlplane"
+	"github.com/tsic404/kosd/pkg/write"
+	"github.com/tsic404/kosd/tests/acceptance/harness"
 )
 
 // owned builds a stored object of one kind with an owner and a team label the
@@ -49,7 +49,7 @@ func TestTC31RoleWritePermissions(t *testing.T) {
 	namespaceParam := "?namespace=" + harness.Namespace
 	application := "/api/v1/resources/Application"
 	create := func(name string) map[string]any {
-		return harness.Manifest("Application", harness.Namespace, name, map[string]string{"managed-by": "kos-shell"}, nil)
+		return harness.Manifest("Application", harness.Namespace, name, map[string]string{"managed-by": "kosd"}, nil)
 	}
 	// An update submits the desired state only: the stored attribution and the
 	// markers the object already carries stay (C-02).
@@ -68,8 +68,8 @@ func TestTC31RoleWritePermissions(t *testing.T) {
 		code   string
 	}{
 		{"Owner creates an application", owner, http.MethodPost, application + namespaceParam, create("owner-app"), http.StatusAccepted, ""},
-		{"Owner creates a provider", owner, http.MethodPost, "/api/v1/resources/Provider", harness.Manifest("Provider", "", "owner-provider", map[string]string{"managed-by": "kos-shell"}, nil), http.StatusAccepted, ""},
-		{"Owner creates an application definition", owner, http.MethodPost, "/api/v1/resources/ApplicationDefinition", harness.Manifest("ApplicationDefinition", "", "owner-definition", map[string]string{"managed-by": "kos-shell"}, nil), http.StatusAccepted, ""},
+		{"Owner creates a provider", owner, http.MethodPost, "/api/v1/resources/Provider", harness.Manifest("Provider", "", "owner-provider", map[string]string{"managed-by": "kosd"}, nil), http.StatusAccepted, ""},
+		{"Owner creates an application definition", owner, http.MethodPost, "/api/v1/resources/ApplicationDefinition", harness.Manifest("ApplicationDefinition", "", "owner-definition", map[string]string{"managed-by": "kosd"}, nil), http.StatusAccepted, ""},
 		{"Member creates an application", alice, http.MethodPost, application + namespaceParam, create("alice-created"), http.StatusAccepted, ""},
 		{"Member writes another member's application", alice, http.MethodPut, application + "/bob-app" + namespaceParam, withOwner(rewrite("bob-app"), "bob"), http.StatusForbidden, controlplane.CodePermissionDenied},
 		{"Member rewrites the owner field", alice, http.MethodPut, application + "/alice-app" + namespaceParam, withOwner(rewrite("alice-app"), "bob"), http.StatusForbidden, controlplane.CodePermissionDenied},
@@ -77,13 +77,13 @@ func TestTC31RoleWritePermissions(t *testing.T) {
 		{"Member references its own volume", alice, http.MethodPost, application + namespaceParam, withVolumes(create("own-volume"), "alice-vol"), http.StatusAccepted, ""},
 		{"Member creates a policy whose selector reaches another member", alice, http.MethodPost, "/api/v1/resources/BackupPolicy" + namespaceParam, policy("bob-scope", "team=bob"), http.StatusForbidden, controlplane.CodePermissionDenied},
 		{"Member creates a policy scoped to itself", alice, http.MethodPost, "/api/v1/resources/BackupPolicy" + namespaceParam, policy("alice-scope", "team=alice"), http.StatusAccepted, ""},
-		{"Member creates a provider", alice, http.MethodPost, "/api/v1/resources/Provider", harness.Manifest("Provider", "", "alice-provider", map[string]string{"managed-by": "kos-shell"}, nil), http.StatusForbidden, controlplane.CodePermissionDenied},
-		{"Member creates a system component", alice, http.MethodPost, "/api/v1/resources/SystemComponent", harness.Manifest("SystemComponent", "", "alice-component", map[string]string{"managed-by": "kos-shell"}, nil), http.StatusForbidden, controlplane.CodePermissionDenied},
-		{"Member creates an application definition", alice, http.MethodPost, "/api/v1/resources/ApplicationDefinition", harness.Manifest("ApplicationDefinition", "", "alice-definition", map[string]string{"managed-by": "kos-shell"}, nil), http.StatusForbidden, controlplane.CodePermissionDenied},
+		{"Member creates a provider", alice, http.MethodPost, "/api/v1/resources/Provider", harness.Manifest("Provider", "", "alice-provider", map[string]string{"managed-by": "kosd"}, nil), http.StatusForbidden, controlplane.CodePermissionDenied},
+		{"Member creates a system component", alice, http.MethodPost, "/api/v1/resources/SystemComponent", harness.Manifest("SystemComponent", "", "alice-component", map[string]string{"managed-by": "kosd"}, nil), http.StatusForbidden, controlplane.CodePermissionDenied},
+		{"Member creates an application definition", alice, http.MethodPost, "/api/v1/resources/ApplicationDefinition", harness.Manifest("ApplicationDefinition", "", "alice-definition", map[string]string{"managed-by": "kosd"}, nil), http.StatusForbidden, controlplane.CodePermissionDenied},
 		{"Member exposes another member's application", alice, http.MethodPost, "/api/v1/resources/Endpoint" + namespaceParam, endpoint("bob-entry", "bob-app"), http.StatusForbidden, controlplane.CodePermissionDenied},
 		{"Member exposes its own application", alice, http.MethodPost, "/api/v1/resources/Endpoint" + namespaceParam, endpoint("alice-entry", "alice-app"), http.StatusAccepted, ""},
 		{"Guest creates an application", guest, http.MethodPost, application + namespaceParam, create("guest-app"), http.StatusForbidden, controlplane.CodePermissionDenied},
-		{"Guest creates a provider", guest, http.MethodPost, "/api/v1/resources/Provider", harness.Manifest("Provider", "", "guest-provider", map[string]string{"managed-by": "kos-shell"}, nil), http.StatusForbidden, controlplane.CodePermissionDenied},
+		{"Guest creates a provider", guest, http.MethodPost, "/api/v1/resources/Provider", harness.Manifest("Provider", "", "guest-provider", map[string]string{"managed-by": "kosd"}, nil), http.StatusForbidden, controlplane.CodePermissionDenied},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
 			headers := harness.Bearer(testCase.token)
@@ -184,14 +184,14 @@ func withVolumes(body map[string]any, volumes ...string) map[string]any {
 
 // policy builds a backup policy body with a selector.
 func policy(name, selector string) map[string]any {
-	body := harness.Manifest("BackupPolicy", harness.Namespace, name, map[string]string{"managed-by": "kos-shell"}, nil)
+	body := harness.Manifest("BackupPolicy", harness.Namespace, name, map[string]string{"managed-by": "kosd"}, nil)
 	body["spec"] = map[string]any{"selector": selector}
 	return body
 }
 
 // endpoint builds an endpoint that exposes one application.
 func endpoint(name, target string) map[string]any {
-	body := harness.Manifest("Endpoint", harness.Namespace, name, map[string]string{"managed-by": "kos-shell"}, nil)
+	body := harness.Manifest("Endpoint", harness.Namespace, name, map[string]string{"managed-by": "kosd"}, nil)
 	body["spec"] = map[string]any{"kind": "http.host", "targetApp": target, "host": name + ".example.test"}
 	return body
 }

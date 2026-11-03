@@ -9,11 +9,11 @@ import (
 	"context"
 	"time"
 
-	"github.com/tsic404/kos/pkg/catalogue"
-	"github.com/tsic404/kos/pkg/controlplane"
-	"github.com/tsic404/kos/pkg/extension"
-	"github.com/tsic404/kos/pkg/identity"
-	"github.com/tsic404/kos/pkg/pages"
+	"github.com/tsic404/kosd/pkg/catalogue"
+	"github.com/tsic404/kosd/pkg/controlplane"
+	"github.com/tsic404/kosd/pkg/extension"
+	"github.com/tsic404/kosd/pkg/identity"
+	"github.com/tsic404/kosd/pkg/pages"
 )
 
 // Readings serves the app-center page over the catalogue domain.

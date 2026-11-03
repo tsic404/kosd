@@ -12,8 +12,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/tsic404/kos/pkg/controlplane"
-	"github.com/tsic404/kos/pkg/markers"
+	"github.com/tsic404/kosd/pkg/controlplane"
+	"github.com/tsic404/kosd/pkg/markers"
 )
 
 // ControlPlane is the API under test, served over the acceptance cluster.
@@ -180,7 +180,7 @@ func Manifest(kind, namespace, name string, labels, annotations map[string]strin
 // Component builds a system component install request naming its package.
 func Component(name, reference, digest string) map[string]any {
 	manifest := Manifest("SystemComponent", "", name, map[string]string{
-		markers.ManagedBy: "kos-shell",
+		markers.ManagedBy: "kosd",
 	}, nil)
 	manifest["spec"] = map[string]any{
 		"package": map[string]any{"reference": reference, "digest": digest},

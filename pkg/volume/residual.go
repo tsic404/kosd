@@ -6,7 +6,7 @@ import (
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
-	"github.com/tsic404/kos/pkg/markers"
+	"github.com/tsic404/kosd/pkg/markers"
 )
 
 // Residual is one released claim no volume binds (C-39).

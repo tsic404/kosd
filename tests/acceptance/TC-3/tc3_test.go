@@ -7,9 +7,9 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/tsic404/kos/pkg/extension"
-	"github.com/tsic404/kos/pkg/write"
-	"github.com/tsic404/kos/tests/acceptance/harness"
+	"github.com/tsic404/kosd/pkg/extension"
+	"github.com/tsic404/kosd/pkg/write"
+	"github.com/tsic404/kosd/tests/acceptance/harness"
 )
 
 // contributions is the declaration both packages carry.

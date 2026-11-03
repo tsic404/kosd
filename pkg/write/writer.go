@@ -11,15 +11,15 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic"
 
-	"github.com/tsic404/kos/pkg/markers"
+	"github.com/tsic404/kosd/pkg/markers"
 )
 
 // fieldManagerLimit is the longest field manager the API server accepts.
 const fieldManagerLimit = 128
 
-// ManagedByValue is what kos-shell writes in managed-by. C-02 fixes the key and
+// ManagedByValue is what kosd writes in managed-by. C-02 fixes the key and
 // its carrier, not a vocabulary for the value.
-const ManagedByValue = "kos-shell"
+const ManagedByValue = "kosd"
 
 // AbandonmentLabel marks the immutable abandonment manifest the application
 // reconciler creates in the KOS namespace (C-04, C-33). It is a plain label, not

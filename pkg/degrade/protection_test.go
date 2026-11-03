@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/tsic404/kos/pkg/budget"
+	"github.com/tsic404/kosd/pkg/budget"
 )
 
 // recorder is a Listener that counts its switches.

@@ -14,10 +14,10 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
-	"github.com/tsic404/kos/api"
-	"github.com/tsic404/kos/pkg/markers"
-	"github.com/tsic404/kos/pkg/write"
-	"github.com/tsic404/kos/tests/acceptance/harness"
+	"github.com/tsic404/kosd/api"
+	"github.com/tsic404/kosd/pkg/markers"
+	"github.com/tsic404/kosd/pkg/write"
+	"github.com/tsic404/kosd/tests/acceptance/harness"
 )
 
 // requestTimeout bounds every API call so a wedged server fails the case.
@@ -38,7 +38,7 @@ func TestTC19MarkerCarrier(t *testing.T) {
 		"metadata": map[string]any{
 			"name":        "annotated",
 			"namespace":   harness.Namespace,
-			"annotations": map[string]any{markers.ManagedBy: "kos-shell"},
+			"annotations": map[string]any{markers.ManagedBy: "kosd"},
 		},
 		"spec": map[string]any{},
 	}}
@@ -48,7 +48,7 @@ func TestTC19MarkerCarrier(t *testing.T) {
 	if got := attribution(t, stored); got != markers.AttributionUnmanaged {
 		t.Fatalf("annotation-carried marker changed the attribution to %s", got)
 	}
-	if selected := cluster.ListByLabels(t, "v1beta1", "Application", markers.ManagedBy+"=kos-shell"); len(selected) != 0 {
+	if selected := cluster.ListByLabels(t, "v1beta1", "Application", markers.ManagedBy+"=kosd"); len(selected) != 0 {
 		t.Fatalf("label selection returned %d objects for an annotation-only marker", len(selected))
 	}
 
@@ -59,7 +59,7 @@ func TestTC19MarkerCarrier(t *testing.T) {
 		"metadata": map[string]any{
 			"name":        "annotated",
 			"namespace":   harness.Namespace,
-			"annotations": map[string]any{markers.ManagedBy: "kos-shell"},
+			"annotations": map[string]any{markers.ManagedBy: "kosd"},
 		},
 	}})
 	var denied *write.Denied
@@ -75,7 +75,7 @@ func TestTC19MarkerCarrier(t *testing.T) {
 	if labels == nil {
 		labels = map[string]string{}
 	}
-	labels[markers.ManagedBy] = "kos-shell"
+	labels[markers.ManagedBy] = "kosd"
 	stored.SetLabels(labels)
 	updated, err := cluster.Direct(t, api.Group, "v1beta1", "Application", harness.Namespace).Update(ctx, stored, metav1.UpdateOptions{})
 	if err != nil {
@@ -84,7 +84,7 @@ func TestTC19MarkerCarrier(t *testing.T) {
 	if got := attribution(t, updated); got != markers.AttributionManaged {
 		t.Fatalf("label-carried marker gave attribution %s, want managed", got)
 	}
-	if selected := cluster.ListByLabels(t, "v1beta1", "Application", markers.ManagedBy+"=kos-shell"); len(selected) != 1 {
+	if selected := cluster.ListByLabels(t, "v1beta1", "Application", markers.ManagedBy+"=kosd"); len(selected) != 1 {
 		t.Fatalf("label selection returned %d objects, want 1", len(selected))
 	}
 
@@ -133,7 +133,7 @@ func TestTC19MarkerCarrier(t *testing.T) {
 func assertProjectionMatchesSelection(t *testing.T, cluster *harness.Cluster, object *unstructured.Unstructured) {
 	t.Helper()
 	state := attribution(t, object)
-	managed := len(cluster.ListByLabels(t, "v1beta1", "Application", fmt.Sprintf("%s=kos-shell", markers.ManagedBy)))
+	managed := len(cluster.ListByLabels(t, "v1beta1", "Application", fmt.Sprintf("%s=kosd", markers.ManagedBy)))
 	adopted := len(cluster.ListByLabels(t, "v1beta1", "Application", fmt.Sprintf("%s=alice", markers.AdoptedBy)))
 	switch state {
 	case markers.AttributionManaged:

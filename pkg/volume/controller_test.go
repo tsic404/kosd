@@ -11,11 +11,11 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
-	"github.com/tsic404/kos/api"
-	"github.com/tsic404/kos/api/v1beta1"
-	"github.com/tsic404/kos/pkg/markers"
-	"github.com/tsic404/kos/pkg/reconcile"
-	"github.com/tsic404/kos/pkg/write"
+	"github.com/tsic404/kosd/api"
+	"github.com/tsic404/kosd/api/v1beta1"
+	"github.com/tsic404/kosd/pkg/markers"
+	"github.com/tsic404/kosd/pkg/reconcile"
+	"github.com/tsic404/kosd/pkg/write"
 )
 
 // fakeStore is an in-memory Store: a round's reads and writes are observable
@@ -236,7 +236,7 @@ func testVolume(spec map[string]any) *unstructured.Unstructured {
 			"name":      "data",
 			"namespace": "default",
 			"uid":       "00000000-0000-0000-0000-0000000000aa",
-			"labels":    map[string]any{"managed-by": "kos-shell"},
+			"labels":    map[string]any{"managed-by": "kosd"},
 		},
 		"spec": spec,
 	}}
@@ -250,7 +250,7 @@ func claimObject(size, pvName, phase string) *unstructured.Unstructured {
 		"metadata": map[string]any{
 			"name":      "data",
 			"namespace": "default",
-			"labels":    map[string]any{"managed-by": "kos-shell"},
+			"labels":    map[string]any{"managed-by": "kosd"},
 		},
 		"spec": map[string]any{
 			"volumeName": pvName,

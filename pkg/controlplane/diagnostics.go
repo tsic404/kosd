@@ -8,8 +8,8 @@ import (
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 
-	"github.com/tsic404/kos/api"
-	"github.com/tsic404/kos/pkg/diagnostics"
+	"github.com/tsic404/kosd/api"
+	"github.com/tsic404/kosd/pkg/diagnostics"
 )
 
 // Diagnostics answers the evidence chain and the diagnostic bundle of one

@@ -8,7 +8,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/tsic404/kos/api"
+	"github.com/tsic404/kosd/api"
 )
 
 // Reasons this package writes itself. The reason of a blocked condition and of

@@ -3,8 +3,8 @@ package extension
 import (
 	"fmt"
 
-	"github.com/tsic404/kos/pkg/controlplane"
-	"github.com/tsic404/kos/pkg/write"
+	"github.com/tsic404/kosd/pkg/controlplane"
+	"github.com/tsic404/kosd/pkg/write"
 )
 
 // Registry is the visibility projection of the active components (C-28): it

@@ -10,7 +10,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	dynamicfake "k8s.io/client-go/dynamic/fake"
 
-	"github.com/tsic404/kos/pkg/discovery"
+	"github.com/tsic404/kosd/pkg/discovery"
 )
 
 // TestRunKeepsReportsWhenOneAdapterFails covers C-25's multi-source rule under

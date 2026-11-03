@@ -14,9 +14,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/tsic404/kos/pkg/controlplane"
-	"github.com/tsic404/kos/pkg/diagnostics"
-	"github.com/tsic404/kos/tests/acceptance/harness"
+	"github.com/tsic404/kosd/pkg/controlplane"
+	"github.com/tsic404/kosd/pkg/diagnostics"
+	"github.com/tsic404/kosd/tests/acceptance/harness"
 )
 
 func TestTC89DiagnosticBundleContents(t *testing.T) {

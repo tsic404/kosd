@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/tsic404/kos/pkg/diagnostics"
+	"github.com/tsic404/kosd/pkg/diagnostics"
 )
 
 // fullDeclaration is a declaration that uses every contribution class.

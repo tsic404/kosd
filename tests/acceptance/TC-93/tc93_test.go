@@ -13,9 +13,9 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/tsic404/kos/api"
-	"github.com/tsic404/kos/pkg/install"
-	"github.com/tsic404/kos/tests/acceptance/harness"
+	"github.com/tsic404/kosd/api"
+	"github.com/tsic404/kosd/pkg/install"
+	"github.com/tsic404/kosd/tests/acceptance/harness"
 )
 
 func TestTC93SingleNodeCommitment(t *testing.T) {

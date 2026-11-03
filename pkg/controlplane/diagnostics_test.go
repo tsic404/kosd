@@ -12,8 +12,8 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
-	"github.com/tsic404/kos/api"
-	"github.com/tsic404/kos/pkg/diagnostics"
+	"github.com/tsic404/kosd/api"
+	"github.com/tsic404/kosd/pkg/diagnostics"
 )
 
 // stubDiagnostics serves fixed bundles for the export cases.

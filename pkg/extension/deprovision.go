@@ -13,12 +13,12 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic"
 
-	"github.com/tsic404/kos/api"
-	"github.com/tsic404/kos/api/v1beta1"
-	"github.com/tsic404/kos/pkg/endpoint"
-	"github.com/tsic404/kos/pkg/markers"
-	"github.com/tsic404/kos/pkg/state"
-	"github.com/tsic404/kos/pkg/write"
+	"github.com/tsic404/kosd/api"
+	"github.com/tsic404/kosd/api/v1beta1"
+	"github.com/tsic404/kosd/pkg/endpoint"
+	"github.com/tsic404/kosd/pkg/markers"
+	"github.com/tsic404/kosd/pkg/state"
+	"github.com/tsic404/kosd/pkg/write"
 )
 
 // ComponentFinalizer keeps a system component visible while another object

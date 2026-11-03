@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/tsic404/kos/pkg/budget"
+	"github.com/tsic404/kosd/pkg/budget"
 )
 
 // Bounds and factors of the degradation protection C-57 fixes.

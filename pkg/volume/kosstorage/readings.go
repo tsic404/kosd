@@ -9,14 +9,14 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic"
 
-	"github.com/tsic404/kos/api/v1beta1"
-	"github.com/tsic404/kos/pkg/controlplane"
-	"github.com/tsic404/kos/pkg/device"
-	"github.com/tsic404/kos/pkg/extension"
-	"github.com/tsic404/kos/pkg/identity"
-	"github.com/tsic404/kos/pkg/pages"
-	"github.com/tsic404/kos/pkg/pages/cluster"
-	volumeapi "github.com/tsic404/kos/pkg/volume"
+	"github.com/tsic404/kosd/api/v1beta1"
+	"github.com/tsic404/kosd/pkg/controlplane"
+	"github.com/tsic404/kosd/pkg/device"
+	"github.com/tsic404/kosd/pkg/extension"
+	"github.com/tsic404/kosd/pkg/identity"
+	"github.com/tsic404/kosd/pkg/pages"
+	"github.com/tsic404/kosd/pkg/pages/cluster"
+	volumeapi "github.com/tsic404/kosd/pkg/volume"
 )
 
 // storageClasses is the native class list a storage policy is read from.

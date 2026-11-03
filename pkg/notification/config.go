@@ -7,8 +7,8 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/tsic404/kos/pkg/controlplane"
-	"github.com/tsic404/kos/pkg/extension"
+	"github.com/tsic404/kosd/pkg/controlplane"
+	"github.com/tsic404/kosd/pkg/extension"
 )
 
 // Channel is one external destination a delivery may target. The credential is

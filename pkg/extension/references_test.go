@@ -5,7 +5,7 @@ import (
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
-	"github.com/tsic404/kos/pkg/write"
+	"github.com/tsic404/kosd/pkg/write"
 )
 
 // TestReferencesTargetFollowsDeclaredPaths checks C-19's reference reading: only

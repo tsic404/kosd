@@ -14,8 +14,8 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic"
 
-	"github.com/tsic404/kos/pkg/install"
-	"github.com/tsic404/kos/tests/acceptance/harness"
+	"github.com/tsic404/kosd/pkg/install"
+	"github.com/tsic404/kosd/tests/acceptance/harness"
 )
 
 // quietWindow shortens the C-15 quiet period. The contract value is pinned by

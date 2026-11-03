@@ -7,8 +7,8 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
-	"github.com/tsic404/kos/api"
-	"github.com/tsic404/kos/pkg/abi"
+	"github.com/tsic404/kosd/api"
+	"github.com/tsic404/kosd/pkg/abi"
 )
 
 func TestBothVersionsShareOneStructure(t *testing.T) {

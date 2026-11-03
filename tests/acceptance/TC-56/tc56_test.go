@@ -15,10 +15,10 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
-	"github.com/tsic404/kos/api"
-	"github.com/tsic404/kos/pkg/app"
-	"github.com/tsic404/kos/pkg/reconcile"
-	"github.com/tsic404/kos/tests/acceptance/harness"
+	"github.com/tsic404/kosd/api"
+	"github.com/tsic404/kosd/pkg/app"
+	"github.com/tsic404/kosd/pkg/reconcile"
+	"github.com/tsic404/kosd/tests/acceptance/harness"
 )
 
 const (
@@ -36,7 +36,7 @@ func TestTC56UninstallStallAndOrphan(t *testing.T) {
 	gateway := cluster.StartControlPlane(t, nil)
 
 	if status, body := gateway.Call(t, http.MethodPost, "/api/v1/resources/Volume",
-		harness.Manifest("Volume", harness.Namespace, "data", map[string]string{"managed-by": "kos-shell"}, nil), nil); status != http.StatusAccepted {
+		harness.Manifest("Volume", harness.Namespace, "data", map[string]string{"managed-by": "kosd"}, nil), nil); status != http.StatusAccepted {
 		t.Fatalf("create volume: status %d, body %v", status, body)
 	}
 	if status, body := gateway.Call(t, http.MethodPost, "/api/v1/resources/Application",

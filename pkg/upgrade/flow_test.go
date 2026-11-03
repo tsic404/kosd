@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/tsic404/kos/api/v1beta1"
-	"github.com/tsic404/kos/pkg/controlplane"
+	"github.com/tsic404/kosd/api/v1beta1"
+	"github.com/tsic404/kosd/pkg/controlplane"
 )
 
 // fakeMaintenance records the steps the flow drives and answers the way the

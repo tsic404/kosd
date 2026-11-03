@@ -6,8 +6,8 @@ package tc13
 import (
 	"testing"
 
-	"github.com/tsic404/kos/pkg/diagnostics"
-	"github.com/tsic404/kos/tests/acceptance/harness"
+	"github.com/tsic404/kosd/pkg/diagnostics"
+	"github.com/tsic404/kosd/tests/acceptance/harness"
 )
 
 func TestTC13AdapterUnavailable(t *testing.T) {

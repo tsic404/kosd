@@ -18,13 +18,13 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes"
 
-	"github.com/tsic404/kos/api"
-	"github.com/tsic404/kos/api/v1beta1"
-	"github.com/tsic404/kos/pkg/adoption"
-	"github.com/tsic404/kos/pkg/extension"
-	"github.com/tsic404/kos/pkg/install"
-	"github.com/tsic404/kos/pkg/markers"
-	"github.com/tsic404/kos/tests/acceptance/harness"
+	"github.com/tsic404/kosd/api"
+	"github.com/tsic404/kosd/api/v1beta1"
+	"github.com/tsic404/kosd/pkg/adoption"
+	"github.com/tsic404/kosd/pkg/extension"
+	"github.com/tsic404/kosd/pkg/install"
+	"github.com/tsic404/kosd/pkg/markers"
+	"github.com/tsic404/kosd/tests/acceptance/harness"
 )
 
 func TestTC91UninstallLeftoverManifest(t *testing.T) {
@@ -239,7 +239,7 @@ func seedLeftovers(t *testing.T, cluster *harness.Cluster) {
 	volume := &corev1.PersistentVolume{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:   "kos-pv-data",
-			Labels: map[string]string{markers.ManagedBy: "kos-shell"},
+			Labels: map[string]string{markers.ManagedBy: "kosd"},
 		},
 		Spec: corev1.PersistentVolumeSpec{
 			Capacity:                      corev1.ResourceList{corev1.ResourceStorage: resource.MustParse("1Gi")},
@@ -384,7 +384,7 @@ func seedManagedClaim(t *testing.T, cluster *harness.Cluster) {
 	claim := &corev1.PersistentVolumeClaim{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "data", Namespace: harness.Namespace,
-			Labels: map[string]string{markers.ManagedBy: "kos-shell"},
+			Labels: map[string]string{markers.ManagedBy: "kosd"},
 		},
 		Spec: corev1.PersistentVolumeClaimSpec{
 			VolumeName:  "kos-pv-data",
@@ -398,7 +398,7 @@ func seedManagedClaim(t *testing.T, cluster *harness.Cluster) {
 	volume := &corev1.PersistentVolume{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:   "kos-pv-data",
-			Labels: map[string]string{markers.ManagedBy: "kos-shell"},
+			Labels: map[string]string{markers.ManagedBy: "kosd"},
 		},
 		Spec: corev1.PersistentVolumeSpec{
 			Capacity:                      corev1.ResourceList{corev1.ResourceStorage: resource.MustParse("1Gi")},

@@ -4,8 +4,8 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/tsic404/kos/pkg/app/builtin"
-	"github.com/tsic404/kos/pkg/extension"
+	"github.com/tsic404/kosd/pkg/app/builtin"
+	"github.com/tsic404/kosd/pkg/extension"
 )
 
 // TestDeclarationLoads checks that the package the distribution ships declares

@@ -13,9 +13,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/tsic404/kos/pkg/controlplane"
-	"github.com/tsic404/kos/pkg/degrade"
-	"github.com/tsic404/kos/tests/acceptance/harness"
+	"github.com/tsic404/kosd/pkg/controlplane"
+	"github.com/tsic404/kosd/pkg/degrade"
+	"github.com/tsic404/kosd/tests/acceptance/harness"
 )
 
 func TestTC99DegradationProtectionUnmeasurable(t *testing.T) {

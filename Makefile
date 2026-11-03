@@ -1,4 +1,5 @@
-# Local entry points for the KOS kernel scaffold. CI runs `verify` and `test`.
+# Local entry points for the kosd kernel scaffold. CI runs `verify`, `lint`,
+# `test` and `acceptance`, one step per target.
 #
 # Nothing here pushes or publishes: the repository is the delivery.
 

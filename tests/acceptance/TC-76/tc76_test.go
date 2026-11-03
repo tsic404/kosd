@@ -16,13 +16,13 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
-	"github.com/tsic404/kos/api"
-	"github.com/tsic404/kos/pkg/controlplane"
-	"github.com/tsic404/kos/pkg/endpoint"
-	"github.com/tsic404/kos/pkg/markers"
-	"github.com/tsic404/kos/pkg/reconcile"
-	"github.com/tsic404/kos/pkg/state"
-	"github.com/tsic404/kos/tests/acceptance/harness"
+	"github.com/tsic404/kosd/api"
+	"github.com/tsic404/kosd/pkg/controlplane"
+	"github.com/tsic404/kosd/pkg/endpoint"
+	"github.com/tsic404/kosd/pkg/markers"
+	"github.com/tsic404/kosd/pkg/reconcile"
+	"github.com/tsic404/kosd/pkg/state"
+	"github.com/tsic404/kosd/tests/acceptance/harness"
 )
 
 func TestTC76PathEndpointNeedsCapabilityAndDeclaration(t *testing.T) {
@@ -311,7 +311,7 @@ func TestTC76ABlockedRouteDoesNotStallAnotherEndpoint(t *testing.T) {
 			"name":      "blocked",
 			"namespace": harness.Namespace,
 			"labels": map[string]any{
-				markers.ManagedBy: "kos-shell",
+				markers.ManagedBy: "kosd",
 				markers.OwnerUID:  string(blockedEndpoint.GetUID()),
 			},
 		},

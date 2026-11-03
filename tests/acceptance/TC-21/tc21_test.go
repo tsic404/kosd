@@ -18,12 +18,12 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic"
 
-	"github.com/tsic404/kos/api"
-	"github.com/tsic404/kos/api/v1beta1"
-	"github.com/tsic404/kos/pkg/extension"
-	"github.com/tsic404/kos/pkg/install"
-	"github.com/tsic404/kos/pkg/markers"
-	"github.com/tsic404/kos/tests/acceptance/harness"
+	"github.com/tsic404/kosd/api"
+	"github.com/tsic404/kosd/api/v1beta1"
+	"github.com/tsic404/kosd/pkg/extension"
+	"github.com/tsic404/kosd/pkg/install"
+	"github.com/tsic404/kosd/pkg/markers"
+	"github.com/tsic404/kosd/tests/acceptance/harness"
 )
 
 const (
@@ -168,7 +168,7 @@ func unreconciledWidget(name string) *unstructured.Unstructured {
 		"kind":       "Widget",
 		"metadata": map[string]any{
 			"name": name, "namespace": harness.Namespace,
-			"labels": map[string]any{markers.ManagedBy: "kos-shell"},
+			"labels": map[string]any{markers.ManagedBy: "kosd"},
 		},
 		"status": map[string]any{"conditions": []any{map[string]any{
 			"type": "Reconciled", "status": "False", "reason": "Pending", "message": "controller has not reconciled",
@@ -203,7 +203,7 @@ func declareObjects(ctx context.Context, cluster *harness.Cluster, rendered dyna
 		"metadata": map[string]any{
 			"name": "shop", "namespace": harness.Namespace,
 			"labels": map[string]any{
-				markers.ManagedBy: "kos-shell", markers.OwnerUID: string(application.GetUID()),
+				markers.ManagedBy: "kosd", markers.OwnerUID: string(application.GetUID()),
 			},
 		},
 		"spec": map[string]any{
@@ -225,7 +225,7 @@ func declareObjects(ctx context.Context, cluster *harness.Cluster, rendered dyna
 		"metadata": map[string]any{
 			"name": "data", "namespace": harness.Namespace,
 			"labels": map[string]any{
-				markers.ManagedBy: "kos-shell", markers.OwnerUID: string(volume.GetUID()),
+				markers.ManagedBy: "kosd", markers.OwnerUID: string(volume.GetUID()),
 			},
 		},
 		"spec": map[string]any{
@@ -249,7 +249,7 @@ func declareObjects(ctx context.Context, cluster *harness.Cluster, rendered dyna
 		"kind":       "Widget",
 		"metadata": map[string]any{
 			"name": "gauge", "namespace": harness.Namespace,
-			"labels": map[string]any{markers.ManagedBy: "kos-shell"},
+			"labels": map[string]any{markers.ManagedBy: "kosd"},
 		},
 	}}
 	if _, err := rendered.Resource(schema.GroupVersionResource{Group: widgetsGroup, Version: "v1", Resource: "widgets"}).

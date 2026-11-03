@@ -17,7 +17,7 @@ import (
 	"k8s.io/client-go/kubernetes/fake"
 	k8stesting "k8s.io/client-go/testing"
 
-	"github.com/tsic404/kos/pkg/controlplane"
+	"github.com/tsic404/kosd/pkg/controlplane"
 )
 
 // TestReplicasReadsTheKernelsDefault covers C-65's stop gate: a workload that

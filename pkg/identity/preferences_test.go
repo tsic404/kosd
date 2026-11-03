@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/tsic404/kos/pkg/controlplane"
-	"github.com/tsic404/kos/pkg/write"
+	"github.com/tsic404/kosd/pkg/controlplane"
+	"github.com/tsic404/kosd/pkg/write"
 )
 
 // schemaSet is the declared preference keys one extension contributes.

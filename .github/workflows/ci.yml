@@ -1,9 +1,11 @@
 name: CI
 
-# The check a pull request can show before it is merged. Two independent steps
-# so a manifest drift cannot hide behind a slow test run: generation is checked
-# against the committed tree, then the unit and acceptance suites run against a
-# real API server.
+# The check a pull request can show before it is merged. The steps mirror the
+# Makefile entry points one to one, so a manifest drift cannot hide behind a
+# slow test run: generation is checked against the committed tree, formatting
+# and vet run on their own, then the unit and acceptance suites run against a
+# real API server. The pinned control-plane version is read from the Makefile,
+# which is its only declaration.
 
 on:
   pull_request:
@@ -32,10 +34,7 @@ jobs:
           cache: true
 
       - name: Generated manifests match the Go types
-        run: |
-          set -euo pipefail
-          make generate
-          git diff --exit-code -- api config
+        run: make verify
 
       - name: Format and vet
         run: make lint
@@ -52,3 +51,6 @@ jobs:
 
       - name: Unit and acceptance tests
         run: make test
+
+      - name: Acceptance suite
+        run: make acceptance

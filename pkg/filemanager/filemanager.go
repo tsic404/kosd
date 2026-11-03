@@ -3,15 +3,15 @@
 // runs its own data-plane service for the files inside the volumes a session may
 // open (C-23, C-27, C-38, C-60).
 //
-// The kernel offers no generic file interface (NG10): kos-shell keeps the
+// The kernel offers no generic file interface (NG10): kosd keeps the
 // volume's lifecycle and access ownership, while this package serves browsing,
 // upload, download, rename and delete from its own handler. The interface opens
 // as an application window, so the package declares no panel page.
 package filemanager
 
 import (
-	"github.com/tsic404/kos/api"
-	"github.com/tsic404/kos/pkg/extension"
+	"github.com/tsic404/kosd/api"
+	"github.com/tsic404/kosd/pkg/extension"
 )
 
 // The package identity and the surface its declaration names (C-17, C-18).

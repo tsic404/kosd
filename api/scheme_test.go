@@ -8,11 +8,11 @@ import (
 
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
-	"github.com/tsic404/kos/api"
+	"github.com/tsic404/kosd/api"
 )
 
 // kernelPackage is the import prefix of the types that make up the object model.
-const kernelPackage = "github.com/tsic404/kos/api/"
+const kernelPackage = "github.com/tsic404/kosd/api/"
 
 // contractKinds is the ten kinds C-01 names, spelled out. The expectation is the
 // contract rather than api.Kinds(), so dropping a kind cannot shrink it too.

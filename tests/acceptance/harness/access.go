@@ -11,10 +11,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/tsic404/kos/pkg/access"
-	"github.com/tsic404/kos/pkg/controlplane"
-	"github.com/tsic404/kos/pkg/identity"
-	"github.com/tsic404/kos/pkg/write"
+	"github.com/tsic404/kosd/pkg/access"
+	"github.com/tsic404/kosd/pkg/controlplane"
+	"github.com/tsic404/kosd/pkg/identity"
+	"github.com/tsic404/kosd/pkg/write"
 )
 
 // Access is one booted system for the role cases: the cluster, the control

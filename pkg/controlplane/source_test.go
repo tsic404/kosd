@@ -8,7 +8,7 @@ import (
 
 	"sigs.k8s.io/yaml"
 
-	"github.com/tsic404/kos/api"
+	"github.com/tsic404/kosd/api"
 )
 
 // TestResourceNamesMatchTheGeneratedCRDs keeps the resource names the client uses

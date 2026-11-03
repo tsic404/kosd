@@ -15,11 +15,11 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/tsic404/kos/api"
-	"github.com/tsic404/kos/api/v1beta1"
-	"github.com/tsic404/kos/pkg/app"
-	"github.com/tsic404/kos/pkg/state"
-	"github.com/tsic404/kos/tests/acceptance/harness"
+	"github.com/tsic404/kosd/api"
+	"github.com/tsic404/kosd/api/v1beta1"
+	"github.com/tsic404/kosd/pkg/app"
+	"github.com/tsic404/kosd/pkg/state"
+	"github.com/tsic404/kosd/tests/acceptance/harness"
 )
 
 // volumeName is the volume declaration and the claim the volume module creates
@@ -98,7 +98,7 @@ func requestVolumeUpgrade(t *testing.T, cluster *harness.Cluster, gateway *harne
 	update["metadata"] = map[string]any{
 		"name":            applicationName,
 		"namespace":       harness.Namespace,
-		"labels":          map[string]any{"managed-by": "kos-shell"},
+		"labels":          map[string]any{"managed-by": "kosd"},
 		"resourceVersion": cluster.Get(t, "v1beta1", "Application", applicationName).GetResourceVersion(),
 	}
 	if status, body := gateway.Call(t, http.MethodPut,

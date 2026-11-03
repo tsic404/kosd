@@ -17,7 +17,7 @@ import (
 
 	_ "modernc.org/sqlite"
 
-	"github.com/tsic404/kos/api/v1beta1"
+	"github.com/tsic404/kosd/api/v1beta1"
 )
 
 // BaselineOrder records the sorting and digest rules every baseline is built

@@ -4,11 +4,11 @@ import (
 	"context"
 	"sort"
 
-	"github.com/tsic404/kos/api"
-	"github.com/tsic404/kos/api/v1beta1"
-	"github.com/tsic404/kos/pkg/app"
-	"github.com/tsic404/kos/pkg/conformance"
-	"github.com/tsic404/kos/pkg/write"
+	"github.com/tsic404/kosd/api"
+	"github.com/tsic404/kosd/api/v1beta1"
+	"github.com/tsic404/kosd/pkg/app"
+	"github.com/tsic404/kosd/pkg/conformance"
+	"github.com/tsic404/kosd/pkg/write"
 )
 
 // Catalogue is the capability view an application compares its requirements

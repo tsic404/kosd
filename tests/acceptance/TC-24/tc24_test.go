@@ -11,10 +11,10 @@ import (
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
-	"github.com/tsic404/kos/api"
-	"github.com/tsic404/kos/pkg/markers"
-	"github.com/tsic404/kos/pkg/write"
-	"github.com/tsic404/kos/tests/acceptance/harness"
+	"github.com/tsic404/kosd/api"
+	"github.com/tsic404/kosd/pkg/markers"
+	"github.com/tsic404/kosd/pkg/write"
+	"github.com/tsic404/kosd/tests/acceptance/harness"
 )
 
 // TestTC24ConcurrentWrites races the object's owner against the global Owner and
@@ -163,7 +163,7 @@ func TestTC24ConcurrentWrites(t *testing.T) {
 		"kind":       "Provider",
 		"metadata": map[string]any{
 			"name":   "guarded-provider",
-			"labels": map[string]any{markers.ManagedBy: "kos-shell"},
+			"labels": map[string]any{markers.ManagedBy: "kosd"},
 		},
 	}}
 	cluster.Create(t, provider)
@@ -267,7 +267,7 @@ func application(name string) *unstructured.Unstructured {
 		"metadata": map[string]any{
 			"name":      name,
 			"namespace": harness.Namespace,
-			"labels":    map[string]any{markers.ManagedBy: "kos-shell"},
+			"labels":    map[string]any{markers.ManagedBy: "kosd"},
 		},
 	}}
 }

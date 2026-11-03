@@ -10,7 +10,7 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 
-	"github.com/tsic404/kos/pkg/reconcile"
+	"github.com/tsic404/kosd/pkg/reconcile"
 )
 
 // roundFunc adapts a function to the Reconciler interface and reports every

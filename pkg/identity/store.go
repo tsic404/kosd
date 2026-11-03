@@ -13,7 +13,7 @@ import (
 
 	_ "modernc.org/sqlite"
 
-	"github.com/tsic404/kos/pkg/write"
+	"github.com/tsic404/kosd/pkg/write"
 )
 
 // User is one stored account. Its password field holds the encoded digest,

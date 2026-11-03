@@ -3,8 +3,8 @@ package api
 import (
 	"k8s.io/apimachinery/pkg/runtime"
 
-	"github.com/tsic404/kos/api/v1alpha1"
-	"github.com/tsic404/kos/api/v1beta1"
+	"github.com/tsic404/kosd/api/v1alpha1"
+	"github.com/tsic404/kosd/api/v1beta1"
 )
 
 // AddToScheme registers both served versions of the KOS group into s.

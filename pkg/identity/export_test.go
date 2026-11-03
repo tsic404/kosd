@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/tsic404/kos/pkg/write"
+	"github.com/tsic404/kosd/pkg/write"
 )
 
 // TestExportAndRestore covers the daily export and the offline restore: the

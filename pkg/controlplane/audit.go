@@ -6,7 +6,7 @@ import (
 	"time"
 	"unicode"
 
-	"github.com/tsic404/kos/pkg/write"
+	"github.com/tsic404/kosd/pkg/write"
 )
 
 // Results an audit record carries: a write either took effect, was refused, or

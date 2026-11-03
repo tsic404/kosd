@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/tsic404/kos/pkg/write"
+	"github.com/tsic404/kosd/pkg/write"
 )
 
 // TestRegistryShowsOnlyActivatedContributions checks that the projection answers

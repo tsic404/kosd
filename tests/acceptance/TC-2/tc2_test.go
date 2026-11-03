@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/tsic404/kos/pkg/extension"
-	"github.com/tsic404/kos/tests/acceptance/harness"
+	"github.com/tsic404/kosd/pkg/extension"
+	"github.com/tsic404/kosd/tests/acceptance/harness"
 )
 
 // declaration contributes one capability on top of the kernel baseline.

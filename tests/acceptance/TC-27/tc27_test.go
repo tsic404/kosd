@@ -11,8 +11,8 @@ import (
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
-	"github.com/tsic404/kos/pkg/controlplane"
-	"github.com/tsic404/kos/tests/acceptance/harness"
+	"github.com/tsic404/kosd/pkg/controlplane"
+	"github.com/tsic404/kosd/tests/acceptance/harness"
 )
 
 // agedSource reports every observation as if it had been taken age ago, which is
@@ -46,7 +46,7 @@ func (s agedSource) Get(ctx context.Context, class controlplane.ObjectType, name
 func TestTC27StaleMarkerFollowsTheObservationTime(t *testing.T) {
 	cluster := harness.Start(t)
 	cluster.Create(t, &unstructured.Unstructured{Object: harness.Manifest(
-		"Application", harness.Namespace, "web", map[string]string{"managed-by": "kos-shell"}, nil)})
+		"Application", harness.Namespace, "web", map[string]string{"managed-by": "kosd"}, nil)})
 
 	path := "/api/v1/resources/Application/web?namespace=" + harness.Namespace
 	collection := "/api/v1/resources/Application?namespace=" + harness.Namespace

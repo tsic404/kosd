@@ -3,7 +3,7 @@ package extension
 import (
 	"strings"
 
-	"github.com/tsic404/kos/api/v1beta1"
+	"github.com/tsic404/kosd/api/v1beta1"
 )
 
 // baselineCapabilities is the kernel capability baseline (C-09): eight names,

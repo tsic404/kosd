@@ -14,10 +14,10 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/tsic404/kos/pkg/endpoint"
-	"github.com/tsic404/kos/pkg/markers"
-	"github.com/tsic404/kos/pkg/write"
-	"github.com/tsic404/kos/tests/acceptance/harness"
+	"github.com/tsic404/kosd/pkg/endpoint"
+	"github.com/tsic404/kosd/pkg/markers"
+	"github.com/tsic404/kosd/pkg/write"
+	"github.com/tsic404/kosd/tests/acceptance/harness"
 )
 
 // TestTC32RolesDoNotGateEntry hides one application from a member and checks the

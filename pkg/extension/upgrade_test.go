@@ -11,9 +11,9 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	dynamicfake "k8s.io/client-go/dynamic/fake"
 
-	"github.com/tsic404/kos/api"
-	"github.com/tsic404/kos/api/v1beta1"
-	"github.com/tsic404/kos/pkg/markers"
+	"github.com/tsic404/kosd/api"
+	"github.com/tsic404/kosd/api/v1beta1"
+	"github.com/tsic404/kosd/pkg/markers"
 )
 
 // upgradeDeclaration is a valid declaration with one read-only page.
@@ -65,7 +65,7 @@ func upgradeComponent(name, reference, digest string, labels map[string]any) *un
 
 // managedLabels marks a component KOS manages (C-02).
 func managedLabels() map[string]any {
-	return map[string]any{markers.ManagedBy: "kos-shell"}
+	return map[string]any{markers.ManagedBy: "kosd"}
 }
 
 // upgradeInstaller builds an installer over an in-memory component list and
@@ -285,7 +285,7 @@ func TestUpgradePreflightRejectsATargetThatIsNotInstalled(t *testing.T) {
 	cases := map[string][]runtime.Object{
 		"unknown component": {upgradeComponent("widgets", "demo-widgets-v1", digest, managedLabels())},
 		"adopted component": {upgradeComponent("ghost", "demo-widgets-v1", digest, map[string]any{
-			markers.AdoptedBy: "kos-shell", markers.AdoptionReason: "operator",
+			markers.AdoptedBy: "kosd", markers.AdoptionReason: "operator",
 		})},
 	}
 	for name, objects := range cases {

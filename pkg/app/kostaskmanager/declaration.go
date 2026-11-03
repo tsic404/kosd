@@ -8,8 +8,8 @@ package kostaskmanager
 import (
 	"net/http"
 
-	"github.com/tsic404/kos/pkg/app"
-	"github.com/tsic404/kos/pkg/extension"
+	"github.com/tsic404/kosd/pkg/app"
+	"github.com/tsic404/kosd/pkg/extension"
 )
 
 // Identifier is the product's extension identity across versions (C-17).

@@ -13,8 +13,8 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/tsic404/kos/pkg/extension"
-	"github.com/tsic404/kos/tests/acceptance/harness"
+	"github.com/tsic404/kosd/pkg/extension"
+	"github.com/tsic404/kosd/tests/acceptance/harness"
 )
 
 // widgetsGroup is the product's own API group.

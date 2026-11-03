@@ -7,7 +7,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
-	"github.com/tsic404/kos/pkg/markers"
+	"github.com/tsic404/kosd/pkg/markers"
 )
 
 // ownerField is the field C-60 lets only the global Owner transfer.

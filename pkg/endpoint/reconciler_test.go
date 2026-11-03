@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/tsic404/kos/api/v1beta1"
-	"github.com/tsic404/kos/pkg/write"
+	"github.com/tsic404/kosd/api/v1beta1"
+	"github.com/tsic404/kosd/pkg/write"
 )
 
 // TestPendingEntryKeepsItsBudget states the replay budget of a failed settle:

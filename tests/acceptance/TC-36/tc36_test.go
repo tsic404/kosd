@@ -20,13 +20,13 @@ import (
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
-	"github.com/tsic404/kos/api"
-	"github.com/tsic404/kos/pkg/app"
-	"github.com/tsic404/kos/pkg/controlplane"
-	"github.com/tsic404/kos/pkg/extension"
-	"github.com/tsic404/kos/pkg/identity"
-	"github.com/tsic404/kos/pkg/write"
-	"github.com/tsic404/kos/tests/acceptance/harness"
+	"github.com/tsic404/kosd/api"
+	"github.com/tsic404/kosd/pkg/app"
+	"github.com/tsic404/kosd/pkg/controlplane"
+	"github.com/tsic404/kosd/pkg/extension"
+	"github.com/tsic404/kosd/pkg/identity"
+	"github.com/tsic404/kosd/pkg/write"
+	"github.com/tsic404/kosd/tests/acceptance/harness"
 )
 
 // declaration declares one extension object class the Owner may write.
@@ -280,7 +280,7 @@ func TestTC36PlanRefusalRecordsNothing(t *testing.T) {
 	// Member may not delete it, so the plan cannot be answered (C-59).
 	theirs := &unstructured.Unstructured{Object: harness.Manifest(
 		"Application", harness.Namespace, "theirs",
-		map[string]string{"managed-by": "kos-shell", "owner-uid": "install-uid"}, nil)}
+		map[string]string{"managed-by": "kosd", "owner-uid": "install-uid"}, nil)}
 	theirs.Object["spec"] = map[string]any{"owner": "alice"}
 	cluster.Create(t, theirs)
 

@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/tsic404/kos/pkg/identity"
+	"github.com/tsic404/kosd/pkg/identity"
 )
 
 // Clock is a movable clock for cases about locks and session bounds.

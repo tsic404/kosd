@@ -26,10 +26,10 @@ import (
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 
-	"github.com/tsic404/kos/api"
-	"github.com/tsic404/kos/api/v1beta1"
-	"github.com/tsic404/kos/pkg/markers"
-	"github.com/tsic404/kos/pkg/write"
+	"github.com/tsic404/kosd/api"
+	"github.com/tsic404/kosd/api/v1beta1"
+	"github.com/tsic404/kosd/pkg/markers"
+	"github.com/tsic404/kosd/pkg/write"
 )
 
 // Namespace is where namespaced kernel objects of the acceptance cases live.
@@ -226,7 +226,7 @@ func markerLabels(kind string) map[string]any {
 		return map[string]any{markers.ManagedBy: "discovery"}
 	default:
 		return map[string]any{
-			markers.ManagedBy: "kos-shell",
+			markers.ManagedBy: "kosd",
 			markers.OwnerUID:  "00000000-0000-0000-0000-000000000001",
 		}
 	}

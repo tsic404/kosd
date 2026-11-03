@@ -518,6 +518,7 @@ C-54 的三种形态共用一条流程（`pkg/install`）：预检、命名空�
 ```bash
 make generate   # 重新生成 deepcopy 与 CRD，并保持与 Go 类型一致
 make verify     # 生成物无漂移 + gofmt + go vet
+make lint       # 只做 gofmt 与 go vet
 make test       # 单元测试 + 验收测试（自动下载 envtest 二进制）
 make acceptance # 只跑 tests/acceptance，输出用例名
 ```

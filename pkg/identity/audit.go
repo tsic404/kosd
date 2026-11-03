@@ -5,8 +5,8 @@ import (
 	"errors"
 	"strconv"
 
-	"github.com/tsic404/kos/api"
-	"github.com/tsic404/kos/pkg/controlplane"
+	"github.com/tsic404/kosd/api"
+	"github.com/tsic404/kosd/pkg/controlplane"
 )
 
 // Operator implements controlplane.Actor (C-14): the account behind the

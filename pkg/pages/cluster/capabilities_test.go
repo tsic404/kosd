@@ -3,8 +3,8 @@ package cluster
 import (
 	"testing"
 
-	"github.com/tsic404/kos/api/v1beta1"
-	"github.com/tsic404/kos/pkg/conformance"
+	"github.com/tsic404/kosd/api/v1beta1"
+	"github.com/tsic404/kosd/pkg/conformance"
 )
 
 // providerOf builds one provider whose effective set and verifier results are

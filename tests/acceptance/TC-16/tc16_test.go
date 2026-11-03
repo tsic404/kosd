@@ -12,8 +12,8 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/tsic404/kos/pkg/endpoint"
-	"github.com/tsic404/kos/tests/acceptance/harness"
+	"github.com/tsic404/kosd/pkg/endpoint"
+	"github.com/tsic404/kosd/tests/acceptance/harness"
 )
 
 func TestTC16UnmanagedEndpointIsReadOnly(t *testing.T) {

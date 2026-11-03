@@ -8,8 +8,8 @@ package dock
 import (
 	"net/http"
 
-	"github.com/tsic404/kos/pkg/extension"
-	"github.com/tsic404/kos/pkg/write"
+	"github.com/tsic404/kosd/pkg/extension"
+	"github.com/tsic404/kosd/pkg/write"
 )
 
 // The package identity and the contribution names it declares.

@@ -15,13 +15,13 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
-	"github.com/tsic404/kos/api"
-	"github.com/tsic404/kos/pkg/controlplane"
-	"github.com/tsic404/kos/pkg/extension"
-	"github.com/tsic404/kos/pkg/identity"
-	"github.com/tsic404/kos/pkg/pages"
-	"github.com/tsic404/kos/pkg/settings/kossettings"
-	"github.com/tsic404/kos/tests/acceptance/harness"
+	"github.com/tsic404/kosd/api"
+	"github.com/tsic404/kosd/pkg/controlplane"
+	"github.com/tsic404/kosd/pkg/extension"
+	"github.com/tsic404/kosd/pkg/identity"
+	"github.com/tsic404/kosd/pkg/pages"
+	"github.com/tsic404/kosd/pkg/settings/kossettings"
+	"github.com/tsic404/kosd/tests/acceptance/harness"
 )
 
 const (
@@ -276,7 +276,7 @@ func systemComponent() map[string]any {
 	return map[string]any{
 		"apiVersion": api.Group + "/v1beta1",
 		"kind":       "SystemComponent",
-		"metadata":   map[string]any{"name": "kos-shell"},
+		"metadata":   map[string]any{"name": "kosd"},
 		"spec":       map[string]any{},
 		"status":     map[string]any{"phase": "Ready", "health": map[string]any{"state": "Healthy"}},
 	}
@@ -352,7 +352,7 @@ func applicationOfVolume() *unstructured.Unstructured {
 func recordMaintenance(t *testing.T, shell *harness.Shell, node string) {
 	t.Helper()
 	err := shell.Accounts.Trail.Store.AppendAudit(context.Background(), identity.AuditEntry{
-		Actor:      "kos-shell",
+		Actor:      "kosd",
 		Object:     api.Group + "/Node/" + node,
 		Verb:       controlplane.VerbMaintain,
 		Result:     controlplane.ResultAccepted,
@@ -372,7 +372,7 @@ func recordDistractors(t *testing.T, shell *harness.Shell, count int) {
 	moment := time.Now().UTC()
 	for index := range count {
 		err := shell.Accounts.Trail.Store.AppendAudit(context.Background(), identity.AuditEntry{
-			Actor:      "kos-shell",
+			Actor:      "kosd",
 			Object:     api.Group + "/Setting/distractor-" + strconv.Itoa(index),
 			Verb:       "set",
 			Result:     controlplane.ResultAccepted,

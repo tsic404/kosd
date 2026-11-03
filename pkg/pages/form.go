@@ -1,8 +1,8 @@
 package pages
 
 import (
-	"github.com/tsic404/kos/api/v1beta1"
-	"github.com/tsic404/kos/pkg/app"
+	"github.com/tsic404/kosd/api/v1beta1"
+	"github.com/tsic404/kosd/pkg/app"
 )
 
 // Control kinds the shell lays out for one config field (C-32). The field's

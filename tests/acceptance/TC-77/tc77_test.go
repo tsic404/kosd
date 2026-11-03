@@ -11,9 +11,9 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 
-	"github.com/tsic404/kos/pkg/endpoint"
-	"github.com/tsic404/kos/pkg/markers"
-	"github.com/tsic404/kos/tests/acceptance/harness"
+	"github.com/tsic404/kosd/pkg/endpoint"
+	"github.com/tsic404/kosd/pkg/markers"
+	"github.com/tsic404/kosd/tests/acceptance/harness"
 )
 
 func TestTC77L4PortAllocation(t *testing.T) {

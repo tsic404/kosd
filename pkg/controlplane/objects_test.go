@@ -27,7 +27,7 @@ func applicationManifest(mutate func(map[string]any)) map[string]any {
 			"name":      "web",
 			"namespace": "default",
 			"uid":       "uid-of-older-read",
-			"labels":    map[string]any{"managed-by": "kos-shell"},
+			"labels":    map[string]any{"managed-by": "kosd"},
 		},
 		"spec": map[string]any{},
 	}
@@ -211,14 +211,14 @@ func TestDecodeExtensionObjectKeepsTheExtensionSpec(t *testing.T) {
 func TestChangesNamesMovedFields(t *testing.T) {
 	current := map[string]any{
 		"metadata": map[string]any{
-			"labels":      map[string]any{"managed-by": "kos-shell", "tier": "bronze"},
+			"labels":      map[string]any{"managed-by": "kosd", "tier": "bronze"},
 			"annotations": map[string]any{"example.test/note": "kept"},
 		},
 		"spec": map[string]any{},
 	}
 	desired := map[string]any{
 		"metadata": map[string]any{
-			"labels":      map[string]any{"managed-by": "kos-shell", "tier": "gold"},
+			"labels":      map[string]any{"managed-by": "kosd", "tier": "gold"},
 			"annotations": map[string]any{"example.test/note": "kept", "example.test/release": "v2"},
 		},
 		"spec": map[string]any{},

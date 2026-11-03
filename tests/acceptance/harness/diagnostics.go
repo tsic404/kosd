@@ -12,11 +12,11 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic"
 
-	"github.com/tsic404/kos/api"
-	"github.com/tsic404/kos/api/v1beta1"
-	"github.com/tsic404/kos/pkg/app"
-	"github.com/tsic404/kos/pkg/diagnostics"
-	"github.com/tsic404/kos/pkg/extension"
+	"github.com/tsic404/kosd/api"
+	"github.com/tsic404/kosd/api/v1beta1"
+	"github.com/tsic404/kosd/pkg/app"
+	"github.com/tsic404/kosd/pkg/diagnostics"
+	"github.com/tsic404/kosd/pkg/extension"
 )
 
 // WidgetGroup is the extension group the diagnostics cases install (C-19).
@@ -464,8 +464,8 @@ func diagnosticEvent(name string, when time.Time) map[string]any {
 		"count":              1,
 		"firstTimestamp":     stamp,
 		"lastTimestamp":      stamp,
-		"reportingComponent": "kos-shell",
-		"reportingInstance":  "kos-shell-1",
+		"reportingComponent": "kosd",
+		"reportingInstance":  "kosd-1",
 	}
 }
 
@@ -487,8 +487,8 @@ func diagnosticNodeEvent(when time.Time) map[string]any {
 		"count":              1,
 		"firstTimestamp":     stamp,
 		"lastTimestamp":      stamp,
-		"reportingComponent": "kos-shell",
-		"reportingInstance":  "kos-shell-1",
+		"reportingComponent": "kosd",
+		"reportingInstance":  "kosd-1",
 	}
 }
 
