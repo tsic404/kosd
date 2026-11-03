@@ -7,6 +7,11 @@
 // setting items. The in-app notification center is the desktop page another
 // product declares (C-52); channel credentials live in the control plane and
 // never enter a cluster object, a log or the declaration (C-14).
+//
+// Migration: tsic404/kos-notification takes over this product surface in
+// stage 3. kosd keeps event and log reading (pkg/controlplane, C-64), the
+// setting-item contract (pkg/settings, C-23) and extension loading
+// (pkg/extension).
 package notification
 
 import (

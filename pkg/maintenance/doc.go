@@ -7,4 +7,8 @@
 // action; the applications bound to the node stop themselves when their
 // reconciliation observes it, and the drain only removes what the run kernel
 // may still move.
+//
+// Migration: tsic404/kosadm takes over the node maintenance flow in stage 2.
+// kosd keeps the reconciler side: an application bound to an unschedulable node
+// stops itself and returns once the node is schedulable again (pkg/app, C-65).
 package maintenance

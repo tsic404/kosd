@@ -4,6 +4,11 @@
 // A case set is the distribution's definition of what a capability version
 // promises; a provider's own result is a declaration, so only a run over a set
 // whose digest matches the distribution's can verify a capability.
+//
+// Migration: the distribution case-set artifact surface moves to
+// tsic404/kos-conformance in stage 3; the sets shipped today stay in this
+// package until then. The run over a set and the verification state it
+// produces stay in kosd (runner.go, C-10).
 package conformance
 
 import (

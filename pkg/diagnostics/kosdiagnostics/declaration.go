@@ -3,6 +3,10 @@
 // reasons and next actions, the blocked uninstall and volume objects, the
 // evidence chain of each unhealthy application, and the diagnostic-bundle export
 // entry C-26 carries.
+//
+// Migration: tsic404/kos-diagnostics takes over the page and the bundle export
+// entry in stage 3. The evidence chain and the bundle assembly stay in kosd
+// (pkg/diagnostics, C-26).
 package kosdiagnostics
 
 import (
