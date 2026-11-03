@@ -203,7 +203,7 @@ func checkPort(port int32) *FieldError {
 }
 
 // checkPathPrefix asks the two declarations C-43 requires, naming the missing
-// side so a write learns which one to fix (AC-38).
+// side so a write learns which one to fix (NET-AC-38).
 func checkPathPrefix(ctx context.Context, namespace string, spec v1beta1.EndpointSpec, facts Facts) *FieldError {
 	app := write.Ref{Group: api.Group, Version: v1beta1.GroupVersion.Version, Kind: "Application", Namespace: namespace, Name: spec.TargetApp}
 	if facts == nil {

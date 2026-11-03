@@ -311,7 +311,7 @@ func TestNodeMaintenanceStopsTheWorkloadsOnTheNode(t *testing.T) {
 
 // TestNodeMaintenanceHoldsThePhaseItEnteredWith covers C-66's phase rule for
 // every phase an application can enter a stop with: the stop holds the value it
-// found instead of writing one of its own (AC-60).
+// found instead of writing one of its own (KOSD-AC-60).
 func TestNodeMaintenanceHoldsThePhaseItEnteredWith(t *testing.T) {
 	// A Failed application is not reconciled at all, so the phases a stop can
 	// meet are the ones a running application carries.

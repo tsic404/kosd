@@ -51,7 +51,7 @@ func TestParseConstraintRejectsGarbage(t *testing.T) {
 
 // TestBaselineCapabilitiesAreTheEightKernelNames pins C-09's baseline, its
 // starting version and the scope the kernel fixes for each name; a product
-// never changes them (TC-2).
+// never changes them (KOSD-TC-2).
 func TestBaselineCapabilitiesAreTheEightKernelNames(t *testing.T) {
 	capabilities := BaselineCapabilities()
 	want := []struct {

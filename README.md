@@ -57,95 +57,95 @@ KOS 是运行在 Kubernetes 上的 homelab 操作系统。「kosd」有两种用
 | `pkg/install/` | C-15/C-54/C-55/C-58：在已有集群安装、引导安装与外置控制面安装、清单渲染、跨集群凭据、KOS 自身升级（先升级对象定义再替换控制面，外置形态分两个集群写入）、安装窗口的写入者归属判定与审计读取、注入失败与回滚、卸载遗留清单、救援只读读取 |
 | `pkg/maintenance/` | C-65 节点维护四步：预检（受影响的 node-local 应用与卷、预计停机时长、不可判定项）、摘除、停止与驱逐、恢复；不可调度字段由 API 进程按 C-04 写入，审计记 `maintain`/`restore` 一对，驱逐只走运行内核的驱逐接口 |
 | `pkg/upgrade/` | C-55 平台升级：预检（受影响应用、停机时长、健康异常应用数、不可判定项）、摘除与驱逐的编排、以节点报告的目标版本为界恢复；无强制驱逐路径 |
-| `tests/acceptance/TC-66/` | 卷迁移六阶段完成，绑定换到新声明、应用不变 |
-| `tests/acceptance/TC-67/` | 五个阶段各注入一次失败后回滚到源卷 |
-| `tests/acceptance/TC-68/` | 清理只打释放标记，不删除源卷 |
-| `tests/acceptance/TC-27/` | 读投影带观测时间，超阈值标记陈旧 |
-| `tests/acceptance/TC-28/` | 同一写请求重复提交只产生一个对象 |
-| `tests/acceptance/TC-29/` | 四类失败的错误包络，断线后操作仍到终态 |
-| `tests/acceptance/TC-35/` | 计划请求无副作用，计划与执行一致 |
-| `tests/acceptance/TC-104/` | 同一对象双版本读取的字段一致性 |
-| `tests/acceptance/TC-105/` | 转换策略为无转换、集群无准入 webhook |
-| `tests/acceptance/TC-25/` | `Reconciled` 的 True、False、Unknown 三值 |
-| `tests/acceptance/TC-26/` | 重复调和无增量、超限单轮可被指标观察到 |
-| `tests/acceptance/TC-17/` | 接管、释放与放弃 |
-| `tests/acceptance/TC-11/` | 发现只读、接管显式与多来源并列 |
-| `tests/acceptance/TC-81/` | 越界写入标无效且不参与调度推导 |
-| `tests/acceptance/TC-82/` | 设备事实陈旧与节点消失后的回收 |
-| `tests/acceptance/TC-83/` | 设备占用来源与空闲设备 |
-| `tests/acceptance/TC-131/` | 同一序列号的重复条目只保留最新 |
-| `tests/acceptance/TC-18/` | 父对象调和器不写子对象 spec |
-| `tests/acceptance/TC-19/` | 归属标记的载体 |
-| `tests/acceptance/TC-24/` | 并发写入与角色写权限 |
-| `tests/acceptance/TC-23/` | 内置定义安装到 Ready、十类对象可被发现 |
-| `tests/acceptance/TC-45/` | 同一配置的翻译结果一致、等价配置等价 |
-| `tests/acceptance/TC-46/` | 私有配置里的卷与入口字段被拒 |
-| `tests/acceptance/TC-47/` | 未知注解不改变阶段、健康与下游 |
-| `tests/acceptance/TC-54/` | 缺失能力与缺失命名空间停在 Pending，齐备后 Installing 再到 Ready |
-| `tests/acceptance/TC-55/` | 五次重试预算、退避上限与用户重试 |
-| `tests/acceptance/TC-56/` | 卸载阻塞可见、orphan 门槛与应用弃置清单 |
-| `tests/acceptance/TC-50/` | 预检通过后应用新清单，回到 Ready 并记录升级完成 |
-| `tests/acceptance/TC-51/` | 升级钩子非零退出时重新应用上一份清单并记录回滚 |
-| `tests/acceptance/TC-52/` | 声明数据格式变更的升级被拒绝，阶段与下游不变且无绕过路径 |
-| `tests/acceptance/TC-53/` | 外部改动强制暂停调和，错误摘要无效，三者一致后恢复 |
-| `tests/acceptance/TC-116/` | 修正、回写、仅报告三种漂移策略与无法表达的差异 |
-| `tests/acceptance/TC-123/` | 停止保留卷、入口与数据，启动恢复副本数，入口条件给出已暂停 |
-| `tests/acceptance/TC-124/` | 重启重建一次、扩缩容收敛、并发停止串行或 409、四类操作审计可分 |
-| `tests/acceptance/TC-125/` | 包默认值物化、未声明标为未限制并给出 LimitRange、覆盖只写提交字段 |
-| `tests/acceptance/TC-126/` | 上限小于请求被拒并指出字段，工作负载与投影保持原值 |
-| `tests/acceptance/TC-127/` | 停止期间写副本数被接受，启动按最后写入值收敛 |
-| `tests/acceptance/TC-72/` | 自身数据库的每日导出与离线恢复 |
-| `tests/acceptance/TC-69/` | 应用一致性备份恢复到新实例，四项基线与源应用不变 |
-| `tests/acceptance/TC-70/` | 同失败域目标被预检拒绝，不产生成功记录 |
-| `tests/acceptance/TC-71/` | 被篡改的演练数据使演练与备份都失败并列出差异 |
-| `tests/acceptance/TC-117/` | 登录失败同一结果、按登录名锁定与退出 |
-| `tests/acceptance/TC-118/` | 角色变更、改口令、停用与删除前置转移 |
-| `tests/acceptance/TC-30/` | 可见性谓词：所有者、列名与未列名成员、访客 |
-| `tests/acceptance/TC-31/` | 角色写权限、所有者写定、跨所有者卷引用与策略选择器 |
-| `tests/acceptance/TC-32/` | 角色与可见性不改变入口可达性 |
-| `tests/acceptance/TC-33/` | 所有者转移：仅全局 Owner，原所有者失去管理权 |
-| `tests/acceptance/TC-34/` | 扩展页面写操作按角色与声明授权 |
-| `tests/acceptance/TC-36/` | 每类写操作一条审计记录，扩展同流，不可改删 |
-| `tests/acceptance/TC-37/` | 敏感值不出投影、日志与自身数据库 |
-| `tests/acceptance/TC-119/` | 日志按应用隔离、超限截断标位、不可见应用读不到 |
-| `tests/acceptance/TC-120/` | 集群不可达与凭据失效给出原因；事件窗口倒序、更早不可读 |
-| `tests/acceptance/TC-79/` | 删除被入口依赖边引用的组件被阻塞并逐个列出依赖者 |
-| `tests/acceptance/TC-80/` | 入口证书状态一等项与到期前 14 天告警 |
-| `tests/acceptance/TC-1/` | 安装与卸载产品不改变内核 kind 集合；对象类只在其 API 组 |
-| `tests/acceptance/TC-2/` | 能力基线不变；扩展能力只在安装期间可读 |
-| `tests/acceptance/TC-3/` | 第一方与第三方同类贡献装载、权限判定与卸载一致 |
-| `tests/acceptance/TC-4/` | 九类声明逐项可见，组件状态就绪 |
-| `tests/acceptance/TC-5/` | 未声明与未安装的贡献不可见，越界写入被拒绝 |
-| `tests/acceptance/TC-6/` | 依赖缺失时无贡献生效；一个控制器失败只影响它管理的对象 |
-| `tests/acceptance/TC-7/` | 设置项给出当前值、来源与修改入口，写入后当前值变化 |
-| `tests/acceptance/TC-8/` | 停用后设置项消失且接口被拒，重新启用后值保留 |
-| `tests/acceptance/TC-9/` | 目录条目结构完整，可安装并产生应用与定义；摘要不匹配不可安装 |
-| `tests/acceptance/TC-10/` | 来源移除后条目消失、应用保留，升级路径标记来源缺失 |
-| `tests/acceptance/TC-57/` | 缺依赖条目拒绝安装并列出缺失能力；越界配置在安装与升级时被拒并指出字段 |
-| `tests/acceptance/TC-58/` | 敏感安装参数不出投影、控制面日志与诊断包，投影只显示已设置 |
-| `tests/acceptance/TC-14/` | 偏好按账号与扩展分域、跨浏览器一致、不进对象投影 |
-| `tests/acceptance/TC-15/` | 偏好的保留语义：声明保留的仍在，默认删除的为空 |
-| `tests/acceptance/TC-106/` | 第三方产品以扩展包加入，对象类只在扩展组，页面带声明来源 |
-| `tests/acceptance/TC-107/` | 扩展对象引用内核卷时删除受阻并列出引用者 |
-| `tests/acceptance/TC-108/` | 扩展能力缺失停在 Pending，安装后继续，自报不构成验证 |
-| `tests/acceptance/TC-109/` | 扩展控制器越界写入内核对象与 PVC 被拒，声明范围仍可写 |
-| `tests/acceptance/TC-110/` | 停用撤除贡献并停控制器，对象保留，启用后恢复 |
-| `tests/acceptance/TC-111/` | 卸载按声明保留或删除数据，保留项进遗留清单；组件、引用、应用与 Provider 依赖逐个阻塞；坏声明只阻塞自身卸载 |
-| `tests/acceptance/TC-112/` | 目标框架版本不兼容时安装被拒绝并列出不兼容项 |
-| `tests/acceptance/TC-113/` | 升级预检列出框架依赖者，仍有依赖时阻塞 |
-| `tests/acceptance/TC-114/` | 通知与文件产品按声明装载、事件投递与卷内访问生效，逐项卸载后其余产品与内核集合不变 |
-| `tests/acceptance/TC-20/` | 干净集群安装窗口按写入者判定，安装器写白名单外对象三次都失败 |
-| `tests/acceptance/TC-21/` | 含卷、入口与扩展的安装窗口通过，未标注原生对象被检出 |
-| `tests/acceptance/TC-22/` | 中段注入失败两次停在同一阶段，回滚不留命名空间与集群权限 |
-| `tests/acceptance/TC-90/` | 裸机引导拉起声明节点数，一次性口令登录并强制改口令 |
-| `tests/acceptance/TC-91/` | 卸载输出六类遗留清单，控制面与对象定义删除，数据按保留选项处理 |
-| `tests/acceptance/TC-92/` | 救援模式只读：可读原生资源，集群与数据库不变，无写入 |
-| `tests/acceptance/TC-93/` | 单节点控制面单副本、节点故障不迁移、文案不承诺高可用 |
-| `tests/acceptance/TC-94/` | 外置控制面：被管集群无控制面工作负载、应用经跨集群凭据调和到 Ready、改 spec 后投影与下游更新、凭据记录到期并可续期、卸载分两侧清除 |
-| `tests/acceptance/TC-95/` | 集群升级预检列出受影响应用与停机时长，升级期间应用被停止、恢复后回到 Ready；扩展升级贡献差异逐项可读 |
-| `tests/acceptance/TC-96/` | 强制驱逐路径不存在：请求被拒、应用未停止时驱逐被拒，工作负载与数据保持原状 |
-| `tests/acceptance/TC-121/` | 维护预检列出 node-local 应用与停机时长，停止先于驱逐，可迁移应用迁出，恢复后回到 Ready 且应用 spec 不变 |
-| `tests/acceptance/TC-122/` | 绕过控制面的 cordon 显示为计划外维护并列出受影响应用，人工撤销后归属消失，只驱逐不标记不产生归属，非 Owner 只读 |
+| `tests/acceptance/STORAGE-TC-66/` | 卷迁移六阶段完成，绑定换到新声明、应用不变 |
+| `tests/acceptance/STORAGE-TC-67/` | 五个阶段各注入一次失败后回滚到源卷 |
+| `tests/acceptance/STORAGE-TC-68/` | 清理只打释放标记，不删除源卷 |
+| `tests/acceptance/KOSD-TC-27/` | 读投影带观测时间，超阈值标记陈旧 |
+| `tests/acceptance/KOSD-TC-28/` | 同一写请求重复提交只产生一个对象 |
+| `tests/acceptance/KOSD-TC-29/` | 四类失败的错误包络，断线后操作仍到终态 |
+| `tests/acceptance/KOSD-TC-35/` | 计划请求无副作用，计划与执行一致 |
+| `tests/acceptance/KOSD-TC-104/` | 同一对象双版本读取的字段一致性 |
+| `tests/acceptance/KOSD-TC-105/` | 转换策略为无转换、集群无准入 webhook |
+| `tests/acceptance/KOSD-TC-25/` | `Reconciled` 的 True、False、Unknown 三值 |
+| `tests/acceptance/KOSD-TC-26/` | 重复调和无增量、超限单轮可被指标观察到 |
+| `tests/acceptance/KOSD-TC-17/` | 接管、释放与放弃 |
+| `tests/acceptance/KOSD-TC-11/` | 发现只读、接管显式与多来源并列 |
+| `tests/acceptance/NODE-TC-81/` | 越界写入标无效且不参与调度推导 |
+| `tests/acceptance/NODE-TC-82/` | 设备事实陈旧与节点消失后的回收 |
+| `tests/acceptance/NODE-TC-83/` | 设备占用来源与空闲设备 |
+| `tests/acceptance/NODE-TC-131/` | 同一序列号的重复条目只保留最新 |
+| `tests/acceptance/KOSD-TC-18/` | 父对象调和器不写子对象 spec |
+| `tests/acceptance/KOSD-TC-19/` | 归属标记的载体 |
+| `tests/acceptance/KOSD-TC-24/` | 并发写入与角色写权限 |
+| `tests/acceptance/KOSD-TC-23/` | 内置定义安装到 Ready、十类对象可被发现 |
+| `tests/acceptance/KOSD-TC-45/` | 同一配置的翻译结果一致、等价配置等价 |
+| `tests/acceptance/KOSD-TC-46/` | 私有配置里的卷与入口字段被拒 |
+| `tests/acceptance/KOSD-TC-47/` | 未知注解不改变阶段、健康与下游 |
+| `tests/acceptance/KOSD-TC-54/` | 缺失能力与缺失命名空间停在 Pending，齐备后 Installing 再到 Ready |
+| `tests/acceptance/KOSD-TC-55/` | 五次重试预算、退避上限与用户重试 |
+| `tests/acceptance/KOSD-TC-56/` | 卸载阻塞可见、orphan 门槛与应用弃置清单 |
+| `tests/acceptance/UPDATER-TC-50/` | 预检通过后应用新清单，回到 Ready 并记录升级完成 |
+| `tests/acceptance/UPDATER-TC-51/` | 升级钩子非零退出时重新应用上一份清单并记录回滚 |
+| `tests/acceptance/UPDATER-TC-52/` | 声明数据格式变更的升级被拒绝，阶段与下游不变且无绕过路径 |
+| `tests/acceptance/UPDATER-TC-53/` | 外部改动强制暂停调和，错误摘要无效，三者一致后恢复 |
+| `tests/acceptance/KOSD-TC-116/` | 修正、回写、仅报告三种漂移策略与无法表达的差异 |
+| `tests/acceptance/KOSD-TC-123/` | 停止保留卷、入口与数据，启动恢复副本数，入口条件给出已暂停 |
+| `tests/acceptance/KOSD-TC-124/` | 重启重建一次、扩缩容收敛、并发停止串行或 409、四类操作审计可分 |
+| `tests/acceptance/KOSD-TC-125/` | 包默认值物化、未声明标为未限制并给出 LimitRange、覆盖只写提交字段 |
+| `tests/acceptance/KOSD-TC-126/` | 上限小于请求被拒并指出字段，工作负载与投影保持原值 |
+| `tests/acceptance/KOSD-TC-127/` | 停止期间写副本数被接受，启动按最后写入值收敛 |
+| `tests/acceptance/KOSD-TC-72/` | 自身数据库的每日导出与离线恢复 |
+| `tests/acceptance/BACKUP-TC-69/` | 应用一致性备份恢复到新实例，四项基线与源应用不变 |
+| `tests/acceptance/BACKUP-TC-70/` | 同失败域目标被预检拒绝，不产生成功记录 |
+| `tests/acceptance/BACKUP-TC-71/` | 被篡改的演练数据使演练与备份都失败并列出差异 |
+| `tests/acceptance/KOSD-TC-117/` | 登录失败同一结果、按登录名锁定与退出 |
+| `tests/acceptance/KOSD-TC-118/` | 角色变更、改口令、停用与删除前置转移 |
+| `tests/acceptance/KOSD-TC-30/` | 可见性谓词：所有者、列名与未列名成员、访客 |
+| `tests/acceptance/KOSD-TC-31/` | 角色写权限、所有者写定、跨所有者卷引用与策略选择器 |
+| `tests/acceptance/KOSD-TC-32/` | 角色与可见性不改变入口可达性 |
+| `tests/acceptance/KOSD-TC-33/` | 所有者转移：仅全局 Owner，原所有者失去管理权 |
+| `tests/acceptance/KOSD-TC-34/` | 扩展页面写操作按角色与声明授权 |
+| `tests/acceptance/KOSD-TC-36/` | 每类写操作一条审计记录，扩展同流，不可改删 |
+| `tests/acceptance/KOSD-TC-37/` | 敏感值不出投影、日志与自身数据库 |
+| `tests/acceptance/KOSD-TC-119/` | 日志按应用隔离、超限截断标位、不可见应用读不到 |
+| `tests/acceptance/KOSD-TC-120/` | 集群不可达与凭据失效给出原因；事件窗口倒序、更早不可读 |
+| `tests/acceptance/NET-TC-79/` | 删除被入口依赖边引用的组件被阻塞并逐个列出依赖者 |
+| `tests/acceptance/NET-TC-80/` | 入口证书状态一等项与到期前 14 天告警 |
+| `tests/acceptance/KOSD-TC-1/` | 安装与卸载产品不改变内核 kind 集合；对象类只在其 API 组 |
+| `tests/acceptance/KOSD-TC-2/` | 能力基线不变；扩展能力只在安装期间可读 |
+| `tests/acceptance/KOSD-TC-3/` | 第一方与第三方同类贡献装载、权限判定与卸载一致 |
+| `tests/acceptance/KOSD-TC-4/` | 九类声明逐项可见，组件状态就绪 |
+| `tests/acceptance/KOSD-TC-5/` | 未声明与未安装的贡献不可见，越界写入被拒绝 |
+| `tests/acceptance/KOSD-TC-6/` | 依赖缺失时无贡献生效；一个控制器失败只影响它管理的对象 |
+| `tests/acceptance/KOSD-TC-7/` | 设置项给出当前值、来源与修改入口，写入后当前值变化 |
+| `tests/acceptance/KOSD-TC-8/` | 停用后设置项消失且接口被拒，重新启用后值保留 |
+| `tests/acceptance/APPSTORE-TC-9/` | 目录条目结构完整，可安装并产生应用与定义；摘要不匹配不可安装 |
+| `tests/acceptance/APPSTORE-TC-10/` | 来源移除后条目消失、应用保留，升级路径标记来源缺失 |
+| `tests/acceptance/APPSTORE-TC-57/` | 缺依赖条目拒绝安装并列出缺失能力；越界配置在安装与升级时被拒并指出字段 |
+| `tests/acceptance/APPSTORE-TC-58/` | 敏感安装参数不出投影、控制面日志与诊断包，投影只显示已设置 |
+| `tests/acceptance/DASH-TC-14/` | 偏好按账号与扩展分域、跨浏览器一致、不进对象投影 |
+| `tests/acceptance/DASH-TC-15/` | 偏好的保留语义：声明保留的仍在，默认删除的为空 |
+| `tests/acceptance/KOSD-TC-106/` | 第三方产品以扩展包加入，对象类只在扩展组，页面带声明来源 |
+| `tests/acceptance/KOSD-TC-107/` | 扩展对象引用内核卷时删除受阻并列出引用者 |
+| `tests/acceptance/KOSD-TC-108/` | 扩展能力缺失停在 Pending，安装后继续，自报不构成验证 |
+| `tests/acceptance/KOSD-TC-109/` | 扩展控制器越界写入内核对象与 PVC 被拒，声明范围仍可写 |
+| `tests/acceptance/KOSD-TC-110/` | 停用撤除贡献并停控制器，对象保留，启用后恢复 |
+| `tests/acceptance/KOSD-TC-111/` | 卸载按声明保留或删除数据，保留项进遗留清单；组件、引用、应用与 Provider 依赖逐个阻塞；坏声明只阻塞自身卸载 |
+| `tests/acceptance/KOSD-TC-112/` | 目标框架版本不兼容时安装被拒绝并列出不兼容项 |
+| `tests/acceptance/KOSD-TC-113/` | 升级预检列出框架依赖者，仍有依赖时阻塞 |
+| `tests/acceptance/KOSD-TC-114/` | 通知与文件产品按声明装载、事件投递与卷内访问生效，逐项卸载后其余产品与内核集合不变 |
+| `tests/acceptance/ADM-TC-20/` | 干净集群安装窗口按写入者判定，安装器写白名单外对象三次都失败 |
+| `tests/acceptance/ADM-TC-21/` | 含卷、入口与扩展的安装窗口通过，未标注原生对象被检出 |
+| `tests/acceptance/ADM-TC-22/` | 中段注入失败两次停在同一阶段，回滚不留命名空间与集群权限 |
+| `tests/acceptance/ADM-TC-90/` | 裸机引导拉起声明节点数，一次性口令登录并强制改口令 |
+| `tests/acceptance/ADM-TC-91/` | 卸载输出六类遗留清单，控制面与对象定义删除，数据按保留选项处理 |
+| `tests/acceptance/ADM-TC-92/` | 救援模式只读：可读原生资源，集群与数据库不变，无写入 |
+| `tests/acceptance/ADM-TC-93/` | 单节点控制面单副本、节点故障不迁移、文案不承诺高可用 |
+| `tests/acceptance/ADM-TC-94/` | 外置控制面：被管集群无控制面工作负载、应用经跨集群凭据调和到 Ready、改 spec 后投影与下游更新、凭据记录到期并可续期、卸载分两侧清除 |
+| `tests/acceptance/ADM-TC-95/` | 集群升级预检列出受影响应用与停机时长，升级期间应用被停止、恢复后回到 Ready；扩展升级贡献差异逐项可读 |
+| `tests/acceptance/ADM-TC-96/` | 强制驱逐路径不存在：请求被拒、应用未停止时驱逐被拒，工作负载与数据保持原状 |
+| `tests/acceptance/KOSD-TC-121/` | 维护预检列出 node-local 应用与停机时长，停止先于驱逐，可迁移应用迁出，恢复后回到 Ready 且应用 spec 不变 |
+| `tests/acceptance/KOSD-TC-122/` | 绕过控制面的 cordon 显示为计划外维护并列出受影响应用，人工撤销后归属消失，只驱逐不标记不产生归属，非 Owner 只读 |
 
 ## 对象模型
 
