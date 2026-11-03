@@ -8,7 +8,7 @@ import (
 
 // baselineCapabilities is the kernel capability baseline (C-09): eight names,
 // each starting at v1 with the scope the kernel fixes. A product never adds to
-// it or changes it (TC-2).
+// it or changes it (KOSD-TC-2).
 var baselineCapabilities = []Capability{
 	{Name: "storage.volume", Version: "v1", Scope: v1beta1.CapabilityScopeNode},
 	{Name: "storage.snapshot", Version: "v1", Scope: v1beta1.CapabilityScopeNode},

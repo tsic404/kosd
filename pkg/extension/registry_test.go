@@ -46,7 +46,7 @@ func TestRegistryShowsOnlyActivatedContributions(t *testing.T) {
 }
 
 // TestRegistryCapabilitiesKeepTheBaseline checks that extension capabilities are
-// appended to the eight baseline names, not mixed into them (TC-2).
+// appended to the eight baseline names, not mixed into them (KOSD-TC-2).
 func TestRegistryCapabilitiesKeepTheBaseline(t *testing.T) {
 	declaration := fullDeclaration("demo.widgets")
 	assessment := Evaluate([]Request{packageRequest(t, "widgets", declaration, time.Now())})

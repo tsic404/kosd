@@ -68,7 +68,7 @@ func NewDistribution(sets ...CaseSet) (*Distribution, error) {
 }
 
 // Standard returns the case sets the distribution ships: the volume, snapshot
-// and HTTP endpoint capabilities of C-09's baseline (AC-19).
+// and HTTP endpoint capabilities of C-09's baseline (KOSD-AC-19).
 func Standard() *Distribution {
 	distribution, err := NewDistribution(standardSets()...)
 	if err != nil {

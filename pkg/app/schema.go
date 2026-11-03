@@ -106,7 +106,7 @@ func (e *ConfigError) Error() string {
 }
 
 // CheckReserved refuses config keys the Volume and Endpoint objects own (F3,
-// TC-46). It runs before the schema lookup so a colliding key is reported as a
+// KOSD-TC-46). It runs before the schema lookup so a colliding key is reported as a
 // collision rather than as an unknown field.
 func CheckReserved(config map[string]any) error {
 	keys := make([]string, 0, len(config))

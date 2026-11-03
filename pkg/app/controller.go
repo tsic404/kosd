@@ -391,7 +391,7 @@ func (c *Controller) install(ctx context.Context, application *v1beta1.Applicati
 	}
 
 	// The move out of Pending is observable as its own phase before any
-	// downstream write happens (C-33, TC-54).
+	// downstream write happens (C-33, KOSD-TC-54).
 	if application.Status.Phase != PhaseInstalling && application.Status.Phase != PhaseReady && application.Status.Phase != PhaseUpgrading {
 		status := baseStatus(application)
 		status.Phase = PhaseInstalling

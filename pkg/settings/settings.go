@@ -350,7 +350,7 @@ func reasonOf(setting extension.Setting) string {
 }
 
 // refusalOf names the declared writer in a refusal, so the caller learns who
-// owns the item instead of only that the write failed (C-23, TC-63).
+// owns the item instead of only that the write failed (C-23, KOSD-TC-63).
 func refusalOf(declared, acting string) string {
 	return "设置项由" + writerName(declared) + "写入，" + actorName(acting) + "不能修改"
 }
