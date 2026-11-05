@@ -42,7 +42,7 @@ KOS 是运行在 Kubernetes 上的 homelab 操作系统。「kosd」有两种用
 | `pkg/identity/` | 账号与会话：本地账号、锁定计数、一次性口令、会话边界与失效、自身数据库与每日导出 |
 | `pkg/adoption/` | 归属动作：接管、释放、放弃与接管前的不可变快照 |
 | `pkg/discovery/` | C-25 发现适配器运行：按声明的类别与范围只读上报，多来源索引 |
-| `pkg/device/` | C-37 设备采集、越界校验、陈旧与回收，以及设备视图与可分配推导 |
+| `pkg/device/` | C-37 越界校验、陈旧与回收，以及设备视图与可分配推导 |
 | `pkg/serial/` | 调和循环之外显式写入动作的按对象串行门（调和轮次由 `pkg/reconcile` 串行） |
 | `pkg/volume/` | C-38/C-39：卷的声明、绑定观察、扩容预检与删除保护 |
 | `pkg/migration/` | C-40 卷迁移：六阶段状态机、目标声明与步骤 Job、回滚点与失败记录 |
@@ -70,10 +70,6 @@ KOS 是运行在 Kubernetes 上的 homelab 操作系统。「kosd」有两种用
 | `tests/acceptance/KOSD-TC-26/` | 重复调和无增量、超限单轮可被指标观察到 |
 | `tests/acceptance/KOSD-TC-17/` | 接管、释放与放弃 |
 | `tests/acceptance/KOSD-TC-11/` | 发现只读、接管显式与多来源并列 |
-| `tests/acceptance/NODE-TC-81/` | 越界写入标无效且不参与调度推导 |
-| `tests/acceptance/NODE-TC-82/` | 设备事实陈旧与节点消失后的回收 |
-| `tests/acceptance/NODE-TC-83/` | 设备占用来源与空闲设备 |
-| `tests/acceptance/NODE-TC-131/` | 同一序列号的重复条目只保留最新 |
 | `tests/acceptance/KOSD-TC-18/` | 父对象调和器不写子对象 spec |
 | `tests/acceptance/KOSD-TC-19/` | 归属标记的载体 |
 | `tests/acceptance/KOSD-TC-24/` | 并发写入与角色写权限 |

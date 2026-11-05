@@ -97,9 +97,9 @@
 | `TC-78/` | `NET-TC-78/` | `kos-network/03-acceptance.md` | NET-TC-78 多播入口 |
 | `TC-79/` | `NET-TC-79/` | `kos-network/03-acceptance.md` | NET-TC-79 删除被依赖组件 |
 | `TC-80/` | `NET-TC-80/` | `kos-network/03-acceptance.md` | NET-TC-80 证书状态与告警 |
-| `TC-81/` | `NODE-TC-81/` | `kos-node/03-acceptance.md` | NODE-TC-81 越界写入 |
-| `TC-82/` | `NODE-TC-82/` | `kos-node/03-acceptance.md` | NODE-TC-82 陈旧与回收 |
-| `TC-83/` | `NODE-TC-83/` | `kos-node/03-acceptance.md` | NODE-TC-83 占用状态 |
+| `TC-81/` | `NODE-TC-81/` | `kos-node/03-acceptance.md` | NODE-TC-81 越界写入；可执行目录已迁出至 `tsic404/kos-node` |
+| `TC-82/` | `NODE-TC-82/` | `kos-node/03-acceptance.md` | NODE-TC-82 陈旧与回收；可执行目录已迁出至 `tsic404/kos-node` |
+| `TC-83/` | `NODE-TC-83/` | `kos-node/03-acceptance.md` | NODE-TC-83 占用状态；可执行目录已迁出至 `tsic404/kos-node` |
 | `TC-84/` | `KOSD-TC-161/` | `kosd/03-acceptance.md` | KOSD-TC-161 失联与恢复 |
 | `TC-85/` | `KOSD-TC-162/` | `kosd/03-acceptance.md` | KOSD-TC-162 单节点退化 |
 | `TC-86/` | `KOSD-TC-86/` | `kosd/03-acceptance.md` | KOSD-TC-86 只读与陈旧 |
@@ -142,7 +142,7 @@
 | `TC-125/` | `KOSD-TC-125/` | `kosd/03-acceptance.md` | KOSD-TC-125 默认与覆盖 |
 | `TC-126/` | `KOSD-TC-126/` | `kosd/03-acceptance.md` | KOSD-TC-126 非法资源组合 |
 | `TC-127/` | `KOSD-TC-127/` | `kosd/03-acceptance.md` | KOSD-TC-127 停止期间写副本数再启动 |
-| `TC-131/` | `NODE-TC-131/` | `kos-node/03-acceptance.md` | NODE-TC-131 重复序列号只保留最新 |
+| `TC-131/` | `NODE-TC-131/` | `kos-node/03-acceptance.md` | NODE-TC-131 重复序列号只保留最新；可执行目录已迁出至 `tsic404/kos-node` |
 | `TC-132/` | `KOSD-TC-132/` | `kosd/03-acceptance.md` | KOSD-TC-132 删除确认的形态与拒绝后果 |
 | `TC-133/` | `KOSD-TC-133/` | `kosd/03-acceptance.md` | KOSD-TC-133 集群级需求与节点级能力 |
 | `TC-134/` | `KOSD-TC-134/` | `kosd/03-acceptance.md` | KOSD-TC-134 作用域取值与越界登记 |
