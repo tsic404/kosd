@@ -104,8 +104,6 @@
 | `TC-91/` | `ADM-TC-91/` | `kosadm/03-acceptance.md` | ADM-TC-91 卸载遗留清单 |
 | `TC-92/` | `ADM-TC-92/` | `kosadm/03-acceptance.md` | ADM-TC-92 救援只读 |
 | `TC-93/` | `ADM-TC-93/` | `kosadm/03-acceptance.md` | ADM-TC-93 单节点承诺 |
-| `TC-95/` | `ADM-TC-95/` | `kosadm/03-acceptance.md` | ADM-TC-95 升级预检与恢复 |
-| `TC-96/` | `ADM-TC-96/` | `kosadm/03-acceptance.md` | ADM-TC-96 无强制驱逐 |
 | `TC-97/` | `KOSD-TC-97/` | `kosd/03-acceptance.md` | KOSD-TC-97 预算复测 |
 | `TC-98/` | `KOSD-TC-98/` | `kosd/03-acceptance.md` | KOSD-TC-98 降级触发与恢复 |
 | `TC-99/` | `KOSD-TC-99/` | `kosd/03-acceptance.md` | KOSD-TC-99 降级保护不可测量 |
