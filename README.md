@@ -134,14 +134,9 @@ KOS 是运行在 Kubernetes 上的 homelab 操作系统。「kosd」有两种用
 | `tests/acceptance/KOSD-TC-112/` | 目标框架版本不兼容时安装被拒绝并列出不兼容项 |
 | `tests/acceptance/KOSD-TC-113/` | 升级预检列出框架依赖者，仍有依赖时阻塞 |
 | `tests/acceptance/KOSD-TC-114/` | 通知与文件产品按声明装载、事件投递与卷内访问生效，逐项卸载后其余产品与内核集合不变 |
-| `tests/acceptance/ADM-TC-20/` | 干净集群安装窗口按写入者判定，安装器写白名单外对象三次都失败 |
-| `tests/acceptance/ADM-TC-21/` | 含卷、入口与扩展的安装窗口通过，未标注原生对象被检出 |
-| `tests/acceptance/ADM-TC-22/` | 中段注入失败两次停在同一阶段，回滚不留命名空间与集群权限 |
-| `tests/acceptance/ADM-TC-90/` | 裸机引导拉起声明节点数，一次性口令登录并强制改口令 |
 | `tests/acceptance/ADM-TC-91/` | 卸载输出六类遗留清单，控制面与对象定义删除，数据按保留选项处理 |
 | `tests/acceptance/ADM-TC-92/` | 救援模式只读：可读原生资源，集群与数据库不变，无写入 |
 | `tests/acceptance/ADM-TC-93/` | 单节点控制面单副本、节点故障不迁移、文案不承诺高可用 |
-| `tests/acceptance/ADM-TC-94/` | 外置控制面：被管集群无控制面工作负载、应用经跨集群凭据调和到 Ready、改 spec 后投影与下游更新、凭据记录到期并可续期、卸载分两侧清除 |
 | `tests/acceptance/ADM-TC-95/` | 集群升级预检列出受影响应用与停机时长，升级期间应用被停止、恢复后回到 Ready；扩展升级贡献差异逐项可读 |
 | `tests/acceptance/ADM-TC-96/` | 强制驱逐路径不存在：请求被拒、应用未停止时驱逐被拒，工作负载与数据保持原状 |
 | `tests/acceptance/KOSD-TC-121/` | 维护预检列出 node-local 应用与停机时长，停止先于驱逐，可迁移应用迁出，恢复后回到 Ready 且应用 spec 不变 |

@@ -36,9 +36,6 @@
 | `TC-17/` | `KOSD-TC-17/` | `kosd/03-acceptance.md` | KOSD-TC-17 接管、释放与放弃 |
 | `TC-18/` | `KOSD-TC-18/` | `kosd/03-acceptance.md` | KOSD-TC-18 父对象不写子对象 spec |
 | `TC-19/` | `KOSD-TC-19/` | `kosd/03-acceptance.md` | KOSD-TC-19 标记载体 |
-| `TC-20/` | `ADM-TC-20/` | `kosadm/03-acceptance.md` | ADM-TC-20 干净集群安装窗口 |
-| `TC-21/` | `ADM-TC-21/` | `kosadm/03-acceptance.md` | ADM-TC-21 含卷与扩展的安装窗口 |
-| `TC-22/` | `ADM-TC-22/` | `kosadm/03-acceptance.md` | ADM-TC-22 中段注入失败与回滚 |
 | `TC-23/` | `KOSD-TC-23/` | `kosd/03-acceptance.md` | KOSD-TC-23 内置定义安装 |
 | `TC-24/` | `KOSD-TC-24/` | `kosd/03-acceptance.md` | KOSD-TC-24 并发写入 |
 | `TC-25/` | `KOSD-TC-25/` | `kosd/03-acceptance.md` | KOSD-TC-25 完成条件三值 |
@@ -106,11 +103,9 @@
 | `TC-87/` | `KOSD-TC-87/` | `kosd/03-acceptance.md` | KOSD-TC-87 控制面重启不重放 |
 | `TC-88/` | `KOSD-TC-88/` | `kosd/03-acceptance.md` | KOSD-TC-88 组件与存储故障 |
 | `TC-89/` | `DIAG-TC-89/` | `kos-diagnostics/03-acceptance.md` | DIAG-TC-89 诊断包内容 |
-| `TC-90/` | `ADM-TC-90/` | `kosadm/03-acceptance.md` | ADM-TC-90 裸机引导 |
 | `TC-91/` | `ADM-TC-91/` | `kosadm/03-acceptance.md` | ADM-TC-91 卸载遗留清单 |
 | `TC-92/` | `ADM-TC-92/` | `kosadm/03-acceptance.md` | ADM-TC-92 救援只读 |
 | `TC-93/` | `ADM-TC-93/` | `kosadm/03-acceptance.md` | ADM-TC-93 单节点承诺 |
-| `TC-94/` | `ADM-TC-94/` | `kosadm/03-acceptance.md` | ADM-TC-94 外置控制面 |
 | `TC-95/` | `ADM-TC-95/` | `kosadm/03-acceptance.md` | ADM-TC-95 升级预检与恢复 |
 | `TC-96/` | `ADM-TC-96/` | `kosadm/03-acceptance.md` | ADM-TC-96 无强制驱逐 |
 | `TC-97/` | `KOSD-TC-97/` | `kosd/03-acceptance.md` | KOSD-TC-97 预算复测 |
