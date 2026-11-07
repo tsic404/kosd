@@ -130,8 +130,6 @@ KOS 是运行在 Kubernetes 上的 homelab 操作系统。「kosd」有两种用
 | `tests/acceptance/KOSD-TC-112/` | 目标框架版本不兼容时安装被拒绝并列出不兼容项 |
 | `tests/acceptance/KOSD-TC-113/` | 升级预检列出框架依赖者，仍有依赖时阻塞 |
 | `tests/acceptance/KOSD-TC-114/` | 通知与文件产品按声明装载、事件投递与卷内访问生效，逐项卸载后其余产品与内核集合不变 |
-| `tests/acceptance/ADM-TC-95/` | 集群升级预检列出受影响应用与停机时长，升级期间应用被停止、恢复后回到 Ready；扩展升级贡献差异逐项可读 |
-| `tests/acceptance/ADM-TC-96/` | 强制驱逐路径不存在：请求被拒、应用未停止时驱逐被拒，工作负载与数据保持原状 |
 | `tests/acceptance/KOSD-TC-121/` | 维护预检列出 node-local 应用与停机时长，停止先于驱逐，可迁移应用迁出，恢复后回到 Ready 且应用 spec 不变 |
 | `tests/acceptance/KOSD-TC-122/` | 绕过控制面的 cordon 显示为计划外维护并列出受影响应用，人工撤销后归属消失，只驱逐不标记不产生归属，非 Owner 只读 |
 

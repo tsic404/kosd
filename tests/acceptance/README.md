@@ -72,8 +72,6 @@
 | `TC-56/` | `KOSD-TC-56/` | `kosd/03-acceptance.md` | KOSD-TC-56 卸载卡死与 orphan |
 | `TC-57/` | `APPSTORE-TC-57/` | `kos-appstore/03-acceptance.md` | APPSTORE-TC-57 缺依赖与越界参数 |
 | `TC-58/` | `APPSTORE-TC-58/` | `kos-appstore/03-acceptance.md` | APPSTORE-TC-58 敏感参数 |
-| `TC-59/` | `DASH-TC-59/` | `kos-dashboard/03-acceptance.md` | DASH-TC-59 删除桌面条目不卸载 |
-| `TC-60/` | `DASH-TC-60/` | `kos-dashboard/03-acceptance.md` | DASH-TC-60 下游改名后条目保持 |
 | `TC-61/` | `DASH-TC-61/` | `kos-dashboard/03-acceptance.md` | DASH-TC-61 关闭全部窗口 |
 | `TC-62/` | `SETTINGS-TC-62/` | `kos-settings/03-acceptance.md` | SETTINGS-TC-62 集群与节点设置的项与入口 |
 | `TC-63/` | `KOSD-TC-63/` | `kosd/03-acceptance.md` | KOSD-TC-63 设置写者唯一 |
@@ -103,8 +101,6 @@
 | `TC-87/` | `KOSD-TC-87/` | `kosd/03-acceptance.md` | KOSD-TC-87 控制面重启不重放 |
 | `TC-88/` | `KOSD-TC-88/` | `kosd/03-acceptance.md` | KOSD-TC-88 组件与存储故障 |
 | `TC-89/` | `DIAG-TC-89/` | `kos-diagnostics/03-acceptance.md` | DIAG-TC-89 诊断包内容 |
-| `TC-95/` | `ADM-TC-95/` | `kosadm/03-acceptance.md` | ADM-TC-95 升级预检与恢复 |
-| `TC-96/` | `ADM-TC-96/` | `kosadm/03-acceptance.md` | ADM-TC-96 无强制驱逐 |
 | `TC-97/` | `KOSD-TC-97/` | `kosd/03-acceptance.md` | KOSD-TC-97 预算复测 |
 | `TC-98/` | `KOSD-TC-98/` | `kosd/03-acceptance.md` | KOSD-TC-98 降级触发与恢复 |
 | `TC-99/` | `KOSD-TC-99/` | `kosd/03-acceptance.md` | KOSD-TC-99 降级保护不可测量 |
@@ -140,3 +136,7 @@
 | `TC-134/` | `KOSD-TC-134/` | `kosd/03-acceptance.md` | KOSD-TC-134 作用域取值与越界登记 |
 | `TC-135/` | `SETTINGS-TC-135/` | `kos-settings/03-acceptance.md` | SETTINGS-TC-135 资源占用的四种状态 |
 | `TC-136/` | `SETTINGS-TC-136/` | `kos-settings/03-acceptance.md` | SETTINGS-TC-136 维护窗口策略项的读写 |
+
+`TC-59` 与 `TC-60` 随桌面条目类迁入实现仓 `tsic404/kos-dashboard` 的
+`tests/acceptance/DASH-TC-59/`、`tests/acceptance/DASH-TC-60/`；本仓不再保留这两个目录，
+`DASH-TC-61` 仍在此处，待窗口包迁出时一并移动。

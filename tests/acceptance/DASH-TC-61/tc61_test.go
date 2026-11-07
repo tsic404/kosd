@@ -15,7 +15,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/tsic404/kosd/pkg/app"
-	"github.com/tsic404/kosd/pkg/dock"
 	"github.com/tsic404/kosd/pkg/extension"
 	"github.com/tsic404/kosd/pkg/wm"
 	"github.com/tsic404/kosd/tests/acceptance/harness"
@@ -27,6 +26,19 @@ const (
 	entryName       = "media-desktop"
 	ownerName       = "owner"
 	ownerPassword   = "owner-password"
+)
+
+// The desktop entry class this case creates objects of. The product package that
+// declares it lives in tsic404/kos-dashboard, so this case declares the same
+// shape locally until the window case moves with the window package.
+const (
+	dashboardGroup     = "desktop.kos.tsic.top"
+	entryVersion       = "v1"
+	entryKind          = "DesktopEntry"
+	entryResource      = "desktopentries"
+	desktopPageID      = "desktop"
+	visibilityEveryone = "everyone"
+	actionAddEntry     = "add-entry"
 )
 
 // mediaTemplate renders the workload the application owns, so the case can
@@ -51,11 +63,12 @@ spec:
           image: example.test/media:1
 `
 
-// TestTC61ClosingWindowsChangesNothing installs kos-dock and kos-wm, drives the
-// browser window set and compares the cluster before and after.
+// TestTC61ClosingWindowsChangesNothing installs the desktop entry class and
+// kos-wm, drives the browser window set and compares the cluster before and
+// after.
 func TestTC61ClosingWindowsChangesNothing(t *testing.T) {
 	cluster := harness.Start(t)
-	cluster.InstallCRD(t, dock.APIGroup, dock.EntryVersion, dock.EntryKind, dock.EntryResource, true)
+	cluster.InstallCRD(t, dashboardGroup, entryVersion, entryKind, entryResource, true)
 	cluster.InstallDefinition(t, harness.DefinitionWithTemplate(t, definitionName, mediaTemplate, nil))
 	cluster.CreateApplication(t, applicationName, definitionName, harness.Namespace)
 	controller := cluster.ApplicationController(t, app.Options{})
@@ -63,10 +76,10 @@ func TestTC61ClosingWindowsChangesNothing(t *testing.T) {
 		t.Fatalf("application phase = %q, want %q", phase, app.PhaseReady)
 	}
 
-	// The desktop package and the window package both install; only the window
+	// The desktop class and the window package both install; only the window
 	// preferences matter to this case.
 	artifacts := extension.MemoryArtifacts{}
-	cluster.InstallPackage(t, "dock", dock.Declaration(), artifacts)
+	cluster.InstallPackage(t, "desktop", desktopDeclaration(), artifacts)
 	installation := cluster.InstallPackage(t, "wm", wm.Declaration(), artifacts)
 	result, found := installation.Component("wm")
 	if !found || result.Phase != extension.PhaseReady || len(result.Problems) > 0 {
@@ -79,7 +92,7 @@ func TestTC61ClosingWindowsChangesNothing(t *testing.T) {
 
 	// The desktop entry is a control-plane object, created through the page's
 	// declared add action and read back by the same account in another browser.
-	method, path := harness.PageAction(t, dock.DesktopPage(), dock.ActionAddEntry, "", harness.Namespace)
+	method, path := harness.PageAction(t, desktopPageFixture(), actionAddEntry, "", harness.Namespace)
 	status, body := shell.Call(t, method, path, desktopEntry(), owner)
 	if status != http.StatusAccepted {
 		t.Fatalf("create the desktop entry = %d %v", status, body)
@@ -156,14 +169,14 @@ func TestTC61ClosingWindowsChangesNothing(t *testing.T) {
 // desktopEntry builds the entry the desktop shows for the application.
 func desktopEntry() map[string]any {
 	return map[string]any{
-		"apiVersion": dock.APIGroup + "/" + dock.EntryVersion,
-		"kind":       dock.EntryKind,
+		"apiVersion": dashboardGroup + "/" + entryVersion,
+		"kind":       entryKind,
 		"metadata":   map[string]any{"name": entryName, "namespace": harness.Namespace},
 		"spec": map[string]any{
 			"application": applicationName,
 			"displayName": "媒体库",
 			"icon":        "media",
-			"visibility":  dock.VisibilityEveryone,
+			"visibility":  visibilityEveryone,
 			"order":       4,
 			"source":      "manual",
 		},
@@ -175,7 +188,7 @@ func desktopEntry() map[string]any {
 func entrySignature(t *testing.T, shell *harness.Shell, token string) string {
 	t.Helper()
 	status, body := shell.Call(t, http.MethodGet,
-		"/api/v1/resources/"+dock.EntryKind+"?apiVersion="+dock.APIGroup+"/"+dock.EntryVersion+
+		"/api/v1/resources/"+entryKind+"?apiVersion="+dashboardGroup+"/"+entryVersion+
 			"&namespace="+harness.Namespace, nil, token)
 	if status != http.StatusOK {
 		t.Fatalf("read the desktop entries = %d %v", status, body)
@@ -265,4 +278,50 @@ func clusterState(t *testing.T, cluster *harness.Cluster) string {
 			deployment.ResourceVersion + "/" + strconv.Itoa(int(replicas))
 	}
 	return state
+}
+
+// desktopDeclaration stands in for the desktop package that moved to
+// tsic404/kos-dashboard: it serves the entry class and the page action this
+// case creates the entry through.
+func desktopDeclaration() extension.Declaration {
+	return extension.Declaration{
+		Identifier: "kos-dashboard",
+		Version:    "1.0.0",
+		APIGroup:   dashboardGroup,
+		Contributions: extension.Contributions{
+			ObjectClasses: []extension.ObjectClass{{
+				Group: dashboardGroup, Kind: entryKind, Resource: entryResource,
+				Versions: []string{entryVersion}, Namespaced: true,
+			}},
+			Pages: []extension.Page{desktopPageFixture()},
+		},
+	}
+}
+
+// desktopPageFixture is the desktop page as far as this case uses it: the
+// entries item and the add/remove actions written against the entry class.
+func desktopPageFixture() extension.Page {
+	return extension.Page{
+		ID: desktopPageID, Title: "桌面", Location: "desktop", RequiredRole: "guest",
+		Items: []extension.PageItem{{
+			ID: "entries", Label: "桌面条目", Source: extension.PageSourceObject,
+			Reference: entryKind, Action: "remove-entry",
+		}},
+		Actions: []extension.Action{
+			{ID: actionAddEntry, Method: http.MethodPost, Path: entryCollectionPath()},
+			{ID: "remove-entry", Method: http.MethodDelete, Path: entryObjectPath()},
+		},
+	}
+}
+
+// entryCollectionPath addresses the entry class for a create.
+func entryCollectionPath() string {
+	return "/api/v1/resources/" + entryKind + "?apiVersion=" + dashboardGroup + "/" + entryVersion +
+		"&namespace={namespace}"
+}
+
+// entryObjectPath addresses one existing entry.
+func entryObjectPath() string {
+	return "/api/v1/resources/" + entryKind + "/{name}?apiVersion=" + dashboardGroup + "/" + entryVersion +
+		"&namespace={namespace}"
 }
