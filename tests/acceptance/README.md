@@ -101,9 +101,6 @@
 | `TC-87/` | `KOSD-TC-87/` | `kosd/03-acceptance.md` | KOSD-TC-87 控制面重启不重放 |
 | `TC-88/` | `KOSD-TC-88/` | `kosd/03-acceptance.md` | KOSD-TC-88 组件与存储故障 |
 | `TC-89/` | `DIAG-TC-89/` | `kos-diagnostics/03-acceptance.md` | DIAG-TC-89 诊断包内容 |
-| `TC-91/` | `ADM-TC-91/` | `kosadm/03-acceptance.md` | ADM-TC-91 卸载遗留清单 |
-| `TC-92/` | `ADM-TC-92/` | `kosadm/03-acceptance.md` | ADM-TC-92 救援只读 |
-| `TC-93/` | `ADM-TC-93/` | `kosadm/03-acceptance.md` | ADM-TC-93 单节点承诺 |
 | `TC-97/` | `KOSD-TC-97/` | `kosd/03-acceptance.md` | KOSD-TC-97 预算复测 |
 | `TC-98/` | `KOSD-TC-98/` | `kosd/03-acceptance.md` | KOSD-TC-98 降级触发与恢复 |
 | `TC-99/` | `KOSD-TC-99/` | `kosd/03-acceptance.md` | KOSD-TC-99 降级保护不可测量 |
