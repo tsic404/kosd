@@ -72,7 +72,6 @@
 | `TC-56/` | `KOSD-TC-56/` | `kosd/03-acceptance.md` | KOSD-TC-56 卸载卡死与 orphan |
 | `TC-57/` | `APPSTORE-TC-57/` | `kos-appstore/03-acceptance.md` | APPSTORE-TC-57 缺依赖与越界参数 |
 | `TC-58/` | `APPSTORE-TC-58/` | `kos-appstore/03-acceptance.md` | APPSTORE-TC-58 敏感参数 |
-| `TC-61/` | `DASH-TC-61/` | `kos-dashboard/03-acceptance.md` | DASH-TC-61 关闭全部窗口 |
 | `TC-62/` | `SETTINGS-TC-62/` | `kos-settings/03-acceptance.md` | SETTINGS-TC-62 集群与节点设置的项与入口 |
 | `TC-63/` | `KOSD-TC-63/` | `kosd/03-acceptance.md` | KOSD-TC-63 设置写者唯一 |
 | `TC-64/` | `STORAGE-TC-64/` | `kos-storage/03-acceptance.md` | STORAGE-TC-64 purge 令牌 |
@@ -137,6 +136,6 @@
 | `TC-135/` | `SETTINGS-TC-135/` | `kos-settings/03-acceptance.md` | SETTINGS-TC-135 资源占用的四种状态 |
 | `TC-136/` | `SETTINGS-TC-136/` | `kos-settings/03-acceptance.md` | SETTINGS-TC-136 维护窗口策略项的读写 |
 
-`TC-59` 与 `TC-60` 随桌面条目类迁入实现仓 `tsic404/kos-dashboard` 的
-`tests/acceptance/DASH-TC-59/`、`tests/acceptance/DASH-TC-60/`；本仓不再保留这两个目录，
-`DASH-TC-61` 仍在此处，待窗口包迁出时一并移动。
+`TC-59`、`TC-60` 与 `TC-61` 随桌面条目类和窗口管理器迁入实现仓 `tsic404/kos-dashboard` 的
+`tests/acceptance/DASH-TC-59/`、`tests/acceptance/DASH-TC-60/` 与 `tests/acceptance/DASH-TC-61/`；
+本仓不再保留这三个目录。
