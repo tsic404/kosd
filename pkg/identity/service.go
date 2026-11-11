@@ -44,8 +44,10 @@ const (
 	// MaxUsernameLength is the longest login name.
 	MaxUsernameLength = 253
 	// MaxPreferenceValueLength is the longest preference value the interface
-	// stores; it keeps one request from filling the database (C-27).
-	MaxPreferenceValueLength = 8192
+	// stores; it keeps one request from filling the database while staying
+	// above the largest value a product declares (the desktop keeps its window
+	// layout under 64 KiB serialized, DASH-C-27).
+	MaxPreferenceValueLength = 64 * 1024
 )
 
 // Session is an authenticated identity for one request (C-63). The role is the

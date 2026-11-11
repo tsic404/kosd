@@ -68,6 +68,36 @@ func TestPreferenceIsScopedByAccountAndExtension(t *testing.T) {
 	}
 }
 
+// TestPreferenceValueHoldsADeclaredLayout checks that the value bound admits a
+// value of the declared 64 KiB and refuses one character more, so a declared
+// 64 KiB value is storable rather than silently capped (C-27). The bar is
+// written as a literal: reading it back from the service constant would let the
+// bound shrink while this test stayed green.
+func TestPreferenceValueHoldsADeclaredLayout(t *testing.T) {
+	const declaredValueLength = 65536 // 64 KiB
+	ctx := context.Background()
+	service := preferenceService(t, schemaSet{"demo.dock": {"layout"}})
+	session := Session{Username: "owner", Role: write.RoleOwner}
+
+	largest := strings.Repeat("a", declaredValueLength)
+	if err := service.SetPreference(ctx, session, "demo.dock", "layout", largest); err != nil {
+		t.Fatalf("write the largest value = %v, want it stored", err)
+	}
+	values, err := service.store.PreferencesOf(ctx, "owner", "demo.dock")
+	if err != nil {
+		t.Fatalf("read preferences: %v", err)
+	}
+	if len(values["layout"]) != declaredValueLength {
+		t.Fatalf("stored value = %d bytes, want %d", len(values["layout"]), declaredValueLength)
+	}
+
+	overLong := strings.Repeat("a", declaredValueLength+1)
+	var validation *ValidationError
+	if err := service.SetPreference(ctx, session, "demo.dock", "layout", overLong); !errors.As(err, &validation) {
+		t.Fatalf("write above the bound = %v, want a validation error", err)
+	}
+}
+
 // TestGuestCannotWriteAPreference checks C-59 on the preference surface.
 func TestGuestCannotWriteAPreference(t *testing.T) {
 	service := preferenceService(t, schemaSet{"demo.dock": {"view"}})
