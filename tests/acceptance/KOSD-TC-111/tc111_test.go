@@ -389,11 +389,14 @@ func TestTC111MalformedDeclarationBlocksOnlyItsOwnUninstall(t *testing.T) {
 		t.Fatal("the healthy package artifact is missing")
 	}
 
-	// Repoint the component at a package that parses but loads into no
+	// Repoint the component at a package that verifies but loads into no
 	// declaration: identifier is empty.
-	malformed := []byte(`{"version":"1.0.0"}`)
+	malformed, malformedDigest, err := extension.Pack(extension.Declaration{}, nil)
+	if err != nil {
+		t.Fatalf("pack the empty declaration: %v", err)
+	}
 	artifacts["test://malformed"] = malformed
-	cluster.RepointComponent(t, "broken", "test://malformed", extension.DigestOf(malformed))
+	cluster.RepointComponent(t, "broken", "test://malformed", malformedDigest)
 
 	cluster.DeleteComponent(t, "healthy")
 	cluster.DeleteComponent(t, "broken")
@@ -430,7 +433,7 @@ func TestTC111MalformedDeclarationBlocksOnlyItsOwnUninstall(t *testing.T) {
 	}
 
 	// A readable package releases the held deletion.
-	cluster.RepointComponent(t, "broken", "test://broken", extension.DigestOf(readable))
+	cluster.RepointComponent(t, "broken", "test://broken", harness.PackageDigest(t, readable))
 	cluster.ExtensionStateWith(t, artifacts, shell.Retention())
 	if _, err := cluster.Direct(t, api.Group, "v1beta1", "SystemComponent", "").Get(ctx, "broken", metav1.GetOptions{}); !apierrors.IsNotFound(err) {
 		t.Fatalf("the repaired component did not uninstall (err %v)", err)

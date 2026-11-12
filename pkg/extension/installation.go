@@ -1,6 +1,7 @@
 package extension
 
 import (
+	"errors"
 	"sort"
 	"strings"
 	"time"
@@ -98,6 +99,8 @@ type ComponentResult struct {
 	Generation int64
 	Identifier string
 	Version    string
+	// Digest is the verified package digest; empty when no package verified.
+	Digest string
 	// FrameworkVersion is the framework range the declaration targets; it is
 	// reported, not judged here (C-18).
 	FrameworkVersion string
@@ -180,20 +183,27 @@ func EvaluateWith(requests []Request, frameworks []string) Assessment {
 			unavailable(result, ReasonPackageMissing, "组件没有声明扩展包")
 			continue
 		}
-		if err := request.Package.Verify(); err != nil {
-			unavailable(result, ReasonDigestMismatch, err.Error())
+		artifact, err := request.Package.Verify()
+		if err != nil {
+			reason := ReasonDigestMismatch
+			if errors.Is(err, ErrDeclaration) {
+				reason = ReasonInvalidDeclaration
+			}
+			unavailable(result, reason, err.Error())
 			continue
 		}
 		result.HasVerifiedPackage = true
-		declaration, err := Parse(request.Package.Content)
+		result.Digest = artifact.Digest
+		loaded, err := artifact.Declaration.Load()
 		if err != nil {
 			unavailable(result, ReasonInvalidDeclaration, err.Error())
 			continue
 		}
-		loaded, err := declaration.Load()
-		if err != nil {
-			unavailable(result, ReasonInvalidDeclaration, err.Error())
-			continue
+		// An application whose icon names a package asset the package does not
+		// carry cannot be loaded from this package (KOSD-C-73).
+		if apps, appProblems := carriedApps(loaded.Contributions.Apps, artifact.Assets); len(appProblems) > 0 {
+			loaded.Contributions.Apps = apps
+			loaded.Problems = append(loaded.Problems, ClassProblem{Class: ClassApps, Items: appProblems})
 		}
 		result.Identifier = loaded.Identifier
 		result.Version = loaded.Version
@@ -298,6 +308,9 @@ func EvaluateWith(requests []Request, frameworks []string) Assessment {
 		result.Reason = ReasonTerminating
 		result.Message = "组件正在卸载，依赖解除前声明的贡献保持生效"
 	}
+	// The application projection carries the final phase, so it is built after
+	// the terminating components have been marked (C-28, KOSD-C-73).
+	registry.apps = installedApps(active, effective, outcomes)
 	results := make([]ComponentResult, 0, len(order))
 	for _, name := range order {
 		results = append(results, *outcomes[name])
@@ -425,7 +438,8 @@ func hasContribution(contributions Contributions) bool {
 		len(contributions.CatalogueSources) > 0 ||
 		len(contributions.DiscoveryAdapters) > 0 ||
 		len(contributions.DiagnosticAdapters) > 0 ||
-		len(contributions.Preferences) > 0
+		len(contributions.Preferences) > 0 ||
+		len(contributions.Apps) > 0
 }
 
 // candidate is a request whose package and declaration are usable.

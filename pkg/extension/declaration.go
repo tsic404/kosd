@@ -5,10 +5,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"net/http"
 	"net/url"
 	"path"
 	"slices"
+	"strconv"
 	"strings"
 
 	"k8s.io/apimachinery/pkg/labels"
@@ -32,6 +34,7 @@ const (
 	ClassDiscoveryAdapters  = "discoveryAdapters"
 	ClassDiagnosticAdapters = "diagnosticAdapters"
 	ClassPreferences        = "preferences"
+	ClassApps               = "apps"
 )
 
 // Setting scopes and writers a declaration names (C-23).
@@ -58,7 +61,7 @@ type Declaration struct {
 	// APIGroup is the extension's own API group. Every object class it
 	// declares belongs to it, and it is never the kernel group (C-19).
 	APIGroup string `json:"apiGroup,omitempty"`
-	// Contributions is the nine-class contribution list.
+	// Contributions is the ten-class contribution list.
 	Contributions Contributions `json:"contributions,omitempty"`
 	// Dependencies are the edges that gate activation (C-28).
 	Dependencies Dependencies `json:"dependencies,omitempty"`
@@ -73,8 +76,8 @@ type Declaration struct {
 	Retention []Retention `json:"retention,omitempty"`
 }
 
-// Contributions is the contribution list C-18 fixes: nine classes, each
-// loaded on its own.
+// Contributions is the contribution list C-18 fixes: ten classes, each loaded
+// on its own.
 type Contributions struct {
 	ObjectClasses      []ObjectClass           `json:"objectClasses,omitempty"`
 	Controllers        []Controller            `json:"controllers,omitempty"`
@@ -85,6 +88,7 @@ type Contributions struct {
 	DiscoveryAdapters  []DiscoveryAdapter      `json:"discoveryAdapters,omitempty"`
 	DiagnosticAdapters []DiagnosticAdapter     `json:"diagnosticAdapters,omitempty"`
 	Preferences        []PreferenceSchema      `json:"preferences,omitempty"`
+	Apps               []App                   `json:"apps,omitempty"`
 }
 
 // GroupKind names one object class; an empty group is the run kernel's core
@@ -364,6 +368,85 @@ func (a Action) Allows(role write.Role) bool {
 	return a.RequiredRole == string(role)
 }
 
+// App is the window application declaration KOSD-C-73 fixes. It is an
+// independent UI document, not a Page variant: the same extension may contribute
+// both, and neither replaces the other (C-18).
+type App struct {
+	// ID identifies the application among the installed extensions.
+	ID string `json:"id"`
+	// Name is the application's display name.
+	Name string `json:"name"`
+	// Version is the UI document's version, which also addresses its assets.
+	Version string `json:"version"`
+	// Icon is taken from this package's UI assets or from the application's own
+	// origin; no other source is loaded (KOSD-C-73).
+	Icon string `json:"icon"`
+	// Entry is the HTTPS address on an origin of its own.
+	Entry string `json:"entry"`
+	// Window carries the default and minimum sizes, the resize flag, the
+	// instance mode and the state the window opens in.
+	Window AppWindow `json:"window"`
+	// Permissions is the declared subset of the fixed application permission
+	// set; it may be empty but must be declared (KOSD-C-73).
+	Permissions []string `json:"permissions"`
+	// Backend is optional; its absence means the application is UI-only.
+	Backend *AppBackend `json:"backend,omitempty"`
+	// DeepLinks is optional; absent or empty means the application opens no
+	// deep link.
+	DeepLinks []string `json:"deepLinks,omitempty"`
+}
+
+// AppWindow is the window declaration of one application; sizes are pixels
+// (KOSD-C-73).
+type AppWindow struct {
+	Width        float64 `json:"width"`
+	Height       float64 `json:"height"`
+	MinWidth     float64 `json:"minWidth"`
+	MinHeight    float64 `json:"minHeight"`
+	Resizable    bool    `json:"resizable"`
+	Mode         string  `json:"mode"`
+	DefaultState string  `json:"defaultState"`
+}
+
+// AppBackend is the optional backend an application declares (KOSD-C-73).
+type AppBackend struct {
+	Type   string `json:"type"`
+	Health string `json:"health"`
+}
+
+// The fixed values KOSD-C-73 and DASH-C-74 give the window declaration.
+const (
+	// AppWindowSingle is the single-instance mode: a second open focuses the
+	// existing window (DASH-C-74).
+	AppWindowSingle = "single"
+	// AppWindowMulti is the multi-instance mode: each deep link opens a window
+	// with its own instance key (DASH-C-74).
+	AppWindowMulti = "multi"
+
+	// AppStateNormal opens the window at its default size.
+	AppStateNormal = "normal"
+	// AppStateMaximized opens the window maximized.
+	AppStateMaximized = "maximized"
+	// AppStateFullscreen opens the window fullscreen.
+	AppStateFullscreen = "fullscreen"
+)
+
+// AppWindowModes are the instance modes DASH-C-74 fixes.
+var AppWindowModes = []string{AppWindowSingle, AppWindowMulti}
+
+// AppDefaultStates are the states DASH-C-74 lets the declaration open into.
+var AppDefaultStates = []string{AppStateNormal, AppStateMaximized, AppStateFullscreen}
+
+// AppPermissionNames is the fixed application permission set of KOSD-C-75, as
+// its wire names.
+var AppPermissionNames = []string{
+	"notifications",
+	"clipboard-read",
+	"clipboard-write",
+	"file-selection",
+	"external-link",
+}
+
 // Setting is an extension-contributed setting item (C-23).
 type Setting struct {
 	ID       string `json:"id"`
@@ -508,8 +591,11 @@ func Marshal(declaration Declaration) ([]byte, error) {
 	return append(encoded, '\n'), nil
 }
 
-// Parse reads a package artifact. Unknown fields are rejected, so a mistyped
-// declaration is reported instead of silently dropped.
+// Parse reads a declaration document, which is the package's manifest.json.
+// Unknown fields are rejected, so a mistyped declaration is reported instead of
+// silently dropped. The App block is required by fields, not only by value,
+// because a zero number or a false flag is not a missing declaration
+// (KOSD-C-73).
 func Parse(content []byte) (Declaration, error) {
 	decoder := json.NewDecoder(bytes.NewReader(content))
 	decoder.DisallowUnknownFields()
@@ -517,7 +603,48 @@ func Parse(content []byte) (Declaration, error) {
 	if err := decoder.Decode(&declaration); err != nil {
 		return Declaration{}, fmt.Errorf("read declaration: %w", err)
 	}
+	if err := checkAppFields(content); err != nil {
+		return Declaration{}, fmt.Errorf("read declaration: %w", err)
+	}
 	return declaration, nil
+}
+
+// appFields is the App declaration's required field set (KOSD-C-73).
+var appFields = []string{"id", "name", "version", "icon", "entry", "window", "permissions"}
+
+// appWindowFields is the window declaration's required field set (KOSD-C-73).
+var appWindowFields = []string{"width", "height", "minWidth", "minHeight", "resizable", "mode", "defaultState"}
+
+// checkAppFields reports the first App entry that omits a required field. A
+// required field with a null value is present: KOSD-C-73 lets permissions be
+// empty, and a null size is judged invalid by the class loader.
+func checkAppFields(content []byte) error {
+	var raw struct {
+		Contributions struct {
+			Apps []map[string]json.RawMessage `json:"apps"`
+		} `json:"contributions"`
+	}
+	if err := json.Unmarshal(content, &raw); err != nil {
+		// The typed decode already reported an invalid document.
+		return nil
+	}
+	for index, app := range raw.Contributions.Apps {
+		for _, field := range appFields {
+			if _, present := app[field]; !present {
+				return fmt.Errorf("contributions.apps[%d] has no %s (KOSD-C-73)", index, field)
+			}
+		}
+		var window map[string]json.RawMessage
+		if err := json.Unmarshal(app["window"], &window); err != nil {
+			continue
+		}
+		for _, field := range appWindowFields {
+			if _, present := window[field]; !present {
+				return fmt.Errorf("contributions.apps[%d].window has no %s (KOSD-C-73)", index, field)
+			}
+		}
+	}
+	return nil
 }
 
 // Load validates a declaration class by class (C-28). A declaration-level
@@ -605,6 +732,10 @@ func (c Contributions) load(identifier, apiGroup string) (Contributions, []Class
 	preferences, preferenceProblems := loadPreferences(c.Preferences)
 	loaded.Preferences = preferences
 	problems = appendProblem(problems, ClassPreferences, preferenceProblems)
+
+	apps, appProblems := loadApps(c.Apps)
+	loaded.Apps = apps
+	problems = appendProblem(problems, ClassApps, appProblems)
 
 	return loaded, problems
 }
@@ -1187,6 +1318,112 @@ func loadPreferences(entries []PreferenceSchema) ([]PreferenceSchema, []string) 
 		kept = append(kept, entry)
 	}
 	return kept, problems
+}
+
+// loadApps validates the window application declarations (C-18, KOSD-C-73).
+// An application id is unique among the installed extension's applications.
+func loadApps(entries []App) ([]App, []string) {
+	ids := map[string]bool{}
+	kept := make([]App, 0, len(entries))
+	problems := []string{}
+	for index, entry := range entries {
+		entryProblems := checkApp(entry)
+		if ids[entry.ID] {
+			entryProblems = append(entryProblems, "application "+entry.ID+" is declared twice")
+		}
+		ids[entry.ID] = true
+		if len(entryProblems) > 0 {
+			problems = append(problems, where(fmt.Sprintf("apps[%d]", index), entryProblems)...)
+			continue
+		}
+		kept = append(kept, entry)
+	}
+	return kept, problems
+}
+
+// checkApp reports the rules KOSD-C-73 puts on one application declaration.
+func checkApp(entry App) []string {
+	var problems []string
+	for _, field := range []struct {
+		name  string
+		value string
+	}{
+		{"id", entry.ID},
+		{"version", entry.Version},
+	} {
+		switch {
+		case strings.TrimSpace(field.value) == "":
+			problems = append(problems, field.name+" is required")
+		case strings.TrimSpace(field.value) != field.value:
+			problems = append(problems, field.name+" must not carry surrounding whitespace")
+		}
+	}
+	if strings.TrimSpace(entry.Name) == "" {
+		problems = append(problems, "name is required")
+	}
+	switch {
+	case strings.TrimSpace(entry.Icon) == "":
+		problems = append(problems, "icon is required")
+	case strings.HasPrefix(entry.Icon, AssetPrefix) && !isAssetPath(entry.Icon):
+		problems = append(problems, "icon "+entry.Icon+" is not a clean path under "+AssetPrefix)
+	}
+	problems = append(problems, checkAppEntry(entry.Entry)...)
+
+	window := entry.Window
+	for _, size := range []struct {
+		name  string
+		value float64
+	}{
+		{"width", window.Width},
+		{"height", window.Height},
+		{"minWidth", window.MinWidth},
+		{"minHeight", window.MinHeight},
+	} {
+		if math.IsNaN(size.value) || math.IsInf(size.value, 0) || size.value <= 0 {
+			problems = append(problems, "window."+size.name+" must be a positive pixel count")
+		}
+	}
+	if !slices.Contains(AppWindowModes, window.Mode) {
+		problems = append(problems, "window.mode "+strconv.Quote(window.Mode)+" is not one of "+strings.Join(AppWindowModes, ", "))
+	}
+	if !slices.Contains(AppDefaultStates, window.DefaultState) {
+		problems = append(problems, "window.defaultState "+strconv.Quote(window.DefaultState)+" is not one of "+strings.Join(AppDefaultStates, ", "))
+	}
+	for index, permission := range entry.Permissions {
+		if !slices.Contains(AppPermissionNames, permission) {
+			problems = append(problems, fmt.Sprintf("permissions[%d]: %q is not in the fixed permission set", index, permission))
+		}
+	}
+	if entry.Backend != nil {
+		if strings.TrimSpace(entry.Backend.Type) == "" {
+			problems = append(problems, "backend.type is required")
+		}
+		if strings.TrimSpace(entry.Backend.Health) == "" {
+			problems = append(problems, "backend.health is required")
+		}
+	}
+	for index, link := range entry.DeepLinks {
+		if strings.TrimSpace(link) == "" {
+			problems = append(problems, fmt.Sprintf("deepLinks[%d] is empty", index))
+		}
+	}
+	return problems
+}
+
+// checkAppEntry reports whether one entry is an absolute HTTPS address with no
+// credentials (KOSD-C-73).
+func checkAppEntry(entry string) []string {
+	if strings.TrimSpace(entry) == "" {
+		return []string{"entry is required"}
+	}
+	parsed, err := url.Parse(entry)
+	if err != nil || parsed.Scheme != "https" || parsed.Host == "" {
+		return []string{"entry must be an absolute https URL (KOSD-C-73)"}
+	}
+	if parsed.User != nil {
+		return []string{"entry is an origin address and must not carry credentials (KOSD-C-73)"}
+	}
+	return nil
 }
 
 // load validates dependency edges and their version ranges (C-28).

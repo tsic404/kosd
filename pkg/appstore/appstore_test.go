@@ -130,13 +130,11 @@ func TestPackageVerifies(t *testing.T) {
 	if pkg.Reference != Reference {
 		t.Fatalf("reference = %q, want %q", pkg.Reference, Reference)
 	}
-	if err := pkg.Verify(); err != nil {
+	artifact, err := pkg.Verify()
+	if err != nil {
 		t.Fatalf("verify the appstore package: %v", err)
 	}
-	parsed, err := extension.Parse(pkg.Content)
-	if err != nil {
-		t.Fatalf("parse the appstore package: %v", err)
-	}
+	parsed := artifact.Declaration
 	if parsed.Identifier != Identifier || len(parsed.Contributions.Pages) != 1 {
 		t.Fatalf("parsed declaration = %+v, want the appstore contributions", parsed)
 	}

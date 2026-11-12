@@ -12,23 +12,23 @@ import (
 // packageRequest builds an install request carrying a verified package.
 func packageRequest(t *testing.T, name string, declaration Declaration, created time.Time) Request {
 	t.Helper()
-	content, err := Marshal(declaration)
+	content, digest, err := Pack(declaration, nil)
 	if err != nil {
-		t.Fatalf("marshal declaration: %v", err)
+		t.Fatalf("pack declaration: %v", err)
 	}
 	return Request{
 		Name:    name,
 		Created: created,
-		Package: &Package{Reference: name, Digest: DigestOf(content), Content: content},
+		Package: &Package{Reference: name, Digest: digest, Content: content},
 	}
 }
 
 // TestEvaluateRejectsDigestMismatch checks that a package whose artifact does
 // not match the named digest installs nothing (C-17).
 func TestEvaluateRejectsDigestMismatch(t *testing.T) {
-	content, err := Marshal(fullDeclaration("demo.widgets"))
+	content, _, err := Pack(fullDeclaration("demo.widgets"), nil)
 	if err != nil {
-		t.Fatalf("marshal: %v", err)
+		t.Fatalf("pack: %v", err)
 	}
 	request := Request{
 		Name:    "widgets",

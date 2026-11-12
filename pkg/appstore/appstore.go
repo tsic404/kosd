@@ -96,11 +96,11 @@ func Package() (extension.Package, error) {
 	if err != nil {
 		return extension.Package{}, err
 	}
-	content, err := extension.Marshal(declaration)
+	content, digest, err := extension.Pack(declaration, nil)
 	if err != nil {
-		return extension.Package{}, fmt.Errorf("marshal the appstore declaration: %w", err)
+		return extension.Package{}, fmt.Errorf("pack the appstore declaration: %w", err)
 	}
-	return extension.Package{Reference: Reference, Digest: extension.DigestOf(content), Content: content}, nil
+	return extension.Package{Reference: Reference, Digest: digest, Content: content}, nil
 }
 
 // catalogueSource offers every definition the distribution ships. The entry

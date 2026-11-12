@@ -57,23 +57,42 @@ func (c *Cluster) InstallPackage(t *testing.T, name string, declaration extensio
 // pass that settles preference retention through sink (C-27, C-29).
 func (c *Cluster) InstallPackageWith(t *testing.T, name string, declaration extension.Declaration, artifacts extension.MemoryArtifacts, sink extension.PreferenceRetention) *extension.Installation {
 	t.Helper()
-	content, err := extension.Marshal(declaration)
+	return c.InstallPackageAssetsWith(t, name, declaration, nil, artifacts, sink)
+}
+
+// InstallPackageAssetsWith creates a component for declaration packed with its
+// UI assets, then runs one install pass that settles preference retention through
+// sink (C-17, C-27, C-29).
+func (c *Cluster) InstallPackageAssetsWith(t *testing.T, name string, declaration extension.Declaration, assets []extension.Asset, artifacts extension.MemoryArtifacts, sink extension.PreferenceRetention) *extension.Installation {
+	t.Helper()
+	content, digest, err := extension.Pack(declaration, assets)
 	if err != nil {
-		t.Fatalf("marshal declaration %s: %v", name, err)
+		t.Fatalf("pack declaration %s: %v", name, err)
 	}
 	reference := "test://" + name
 	artifacts[reference] = content
-	c.Create(t, &unstructured.Unstructured{Object: Component(name, reference, extension.DigestOf(content))})
+	c.Create(t, &unstructured.Unstructured{Object: Component(name, reference, digest)})
 	return c.ExtensionStateWith(t, artifacts, sink)
+}
+
+// PackageDigest returns the digest an existing package artifact carries, which
+// a case echoes when it re-points a component at that artifact (C-17).
+func PackageDigest(t *testing.T, content []byte) string {
+	t.Helper()
+	artifact, err := extension.Read(content)
+	if err != nil {
+		t.Fatalf("read package artifact: %v", err)
+	}
+	return artifact.Digest
 }
 
 // UpgradePackage replaces one installed component's package with a new
 // declaration and runs the install pass again (C-17).
 func (c *Cluster) UpgradePackage(t *testing.T, name string, declaration extension.Declaration, artifacts extension.MemoryArtifacts) *extension.Installation {
 	t.Helper()
-	content, err := extension.Marshal(declaration)
+	content, digest, err := extension.Pack(declaration, nil)
 	if err != nil {
-		t.Fatalf("marshal declaration %s: %v", name, err)
+		t.Fatalf("pack declaration %s: %v", name, err)
 	}
 	reference := "test://" + name
 	artifacts[reference] = content
@@ -84,7 +103,7 @@ func (c *Cluster) UpgradePackage(t *testing.T, name string, declaration extensio
 	if err != nil {
 		t.Fatalf("read component %s: %v", name, err)
 	}
-	if err := unstructured.SetNestedField(component.Object, extension.DigestOf(content), "spec", "package", "digest"); err != nil {
+	if err := unstructured.SetNestedField(component.Object, digest, "spec", "package", "digest"); err != nil {
 		t.Fatalf("set package digest of %s: %v", name, err)
 	}
 	if err := unstructured.SetNestedField(component.Object, reference, "spec", "package", "reference"); err != nil {

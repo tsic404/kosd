@@ -189,12 +189,12 @@ func (g *Gate) declarations(ctx context.Context, components []*unstructured.Unst
 		if err != nil {
 			return declarationSet{}, fmt.Errorf("component %s: read package %q: %w", component.GetName(), reference, err)
 		}
-		declaration, err := Parse(content)
+		artifact, err := Read(content)
 		if err != nil {
 			set.unreadable[component.GetName()] = err
 			continue
 		}
-		loaded, err := declaration.Load()
+		loaded, err := artifact.Declaration.Load()
 		if err != nil {
 			set.unreadable[component.GetName()] = err
 			continue
