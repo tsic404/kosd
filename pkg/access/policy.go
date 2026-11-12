@@ -118,6 +118,10 @@ func (p *Policy) Decide(ctx context.Context, session Session, request controlpla
 		return item, err
 	case controlplane.VerbDelete:
 		return p.remove(ctx, session, request, grant)
+	case controlplane.VerbDeletePod:
+		// A Pod is not a KOS object: deleting one is judged as a write to the
+		// application that owns it, so C-59's role write rule decides (C-77).
+		return p.remove(ctx, session, request, grant)
 	case controlplane.VerbEventRead:
 		return grant, p.eventVisible(ctx, session, request)
 	default:

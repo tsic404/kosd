@@ -200,12 +200,15 @@ KOS 不再写它；放弃写入 `declined`，对象留在 unmanaged，不再被�
 | `POST` | `/api/v1/plan-requests` | 三类差异、摘要与警告；不写任何对象 |
 | `POST` | `/api/v1/apply-requests` | 接受期望对象集后执行；进度从对象本身读取 |
 | `POST` | `/api/v1/action-requests` | 应用动作 `retry`/`orphan`/`confirm`/`restart`/`reinstall`/`stop`/`start`/`scale`；202 已接受 + 动作记录引用 |
+| `GET` | `/api/v1/pods/{namespace}/{name}` | 某应用的 Pod 运行态投影：只读，只含该应用工作负载的 Pod，每项带来源类型、观测时间与陈旧标记；停止的应用为空 |
+| `DELETE` | `/api/v1/pods/{namespace}/{name}/{pod}` | 删除该应用的一个 Pod：按应用的角色写权限判定，重复提交按成功处理并各留一条审计；应用 spec、副本数、卷与入口不变 |
 | `POST` | `/api/v1/node-maintenance/preflight` | C-65 预检：受影响 node-local 应用与卷、预计停机时长、不可判定项；不写任何对象 |
 | `POST` | `/api/v1/node-maintenance` | 摘除：预检不可判定时拒绝，否则写节点不可调度字段并记 `maintain`；202 已接受 + 节点引用 |
 | `POST` | `/api/v1/node-maintenance/drain` | 停止之后驱逐：node-local 应用仍在运行时返回 409，驱逐只经运行内核的驱逐接口 |
 | `DELETE` | `/api/v1/node-maintenance/{name}` | 恢复：撤销不可调度并记 `restore`；202 已接受 |
 
 - 读投影每项带 `observedAt` 与 `stale`；陈旧阈值是 `controlplane.StaleThreshold`（2 分钟），所有来源共用。确知发现来源时，投影的 `sources` 列出全部上报的适配器标识。
+- `GET /api/v1/logs/{namespace}/{name}` 的 `pod` 查询参数把读取收窄到该 Pod 的容器：同应用其他 Pod 的行不出现，窗口、行数上限与可见性判定不变。单 Pod 删除在审计流中记 `delete-pod`，与 `stop`/`start`/`restart`/`scale` 可区分。
 - 写请求返回 202 与对象引用，不返回已完成；工作在接受后继续，客户端断线不影响推进。
 - 同一写请求重复提交收敛到同一对象；已存在且期望状态不同时报 `object_exists`。
 - 写请求带 `If-Match`（或 `metadata.resourceVersion`）；版本已变时由 API server 判冲突，返回 409
