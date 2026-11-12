@@ -38,9 +38,13 @@ type Service struct {
 	Pods PodSource
 	// Auditor records every write attempt (C-14); nil records nothing.
 	Auditor controlplane.Auditor
+	// Window reads the cluster maintenance window policy (C-72); nil leaves the
+	// start unrestricted, as an unwritten policy does.
+	Window WindowPolicy
 	// Log receives the trail failures a caller must not learn about.
 	Log *slog.Logger
-	// Now supplies the clock the audit record carries; defaults to time.Now.
+	// Now supplies the clock the window is judged at and the audit record
+	// carries; defaults to time.Now.
 	Now func() time.Time
 }
 
@@ -52,6 +56,12 @@ type Service struct {
 func (s *Service) Cordon(ctx context.Context, request controlplane.MaintenanceRequest, actor string) (controlplane.MaintenanceReport, bool, *controlplane.Error) {
 	report, failure := s.Preflight(ctx, request)
 	if failure != nil {
+		return controlplane.MaintenanceReport{}, false, failure
+	}
+	// The cluster policy decides whether a start is inside its window (C-72).
+	// The judge runs before any write, so a refusal leaves the node's
+	// unschedulable field and the audit trail as they were.
+	if failure := s.judgeWindow(ctx, request.Node); failure != nil {
 		return controlplane.MaintenanceReport{}, false, failure
 	}
 	if len(report.Undetermined) > 0 {

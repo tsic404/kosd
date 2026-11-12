@@ -318,6 +318,31 @@ func itemOf(setting extension.Setting, value string) Item {
 	return item
 }
 
+// ClusterValue returns the stored value of one cluster-scoped item and whether
+// an active component declares it (C-23). It is the read a kernel consumer makes
+// of a policy the product contributes (C-72): an item no active component
+// declares has no effect, and an item the user never wrote is empty without
+// being an error.
+func (s *Service) ClusterValue(ctx context.Context, id string) (string, bool, *controlplane.Error) {
+	setting, ok := s.declarations.Setting(id)
+	if !ok {
+		return "", false, nil
+	}
+	if setting.Scope != extension.SettingScopeCluster {
+		return "", false, &controlplane.Error{
+			Code:        controlplane.CodeInternal,
+			Message:     "设置项 " + id + " 不是集群级，不能按集群策略读取",
+			Stage:       controlplane.StageRead,
+			SideEffects: controlplane.SideEffectsNone,
+		}
+	}
+	values, err := s.values.SettingValues(ctx, extension.SettingScopeCluster, "")
+	if err != nil {
+		return "", false, unavailable()
+	}
+	return values[id], true, nil
+}
+
 // entryPathOf names the request that writes one item. A node-scoped value is
 // stored for one node, so its path carries the node the caller must choose;
 // a cluster or account item addresses no node (C-23).

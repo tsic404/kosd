@@ -135,6 +135,7 @@
 | `TC-134/` | `KOSD-TC-134/` | `kosd/03-acceptance.md` | KOSD-TC-134 作用域取值与越界登记 |
 | `TC-135/` | `SETTINGS-TC-135/` | `kos-settings/03-acceptance.md` | SETTINGS-TC-135 资源占用的四种状态 |
 | `TC-136/` | `SETTINGS-TC-136/` | `kos-settings/03-acceptance.md` | SETTINGS-TC-136 维护窗口策略项的读写 |
+| `TC-137/` | `SETTINGS-TC-137/` | `kos-settings/03-acceptance.md` | SETTINGS-TC-137 维护发起的窗口边界 |
 
 `TC-59`、`TC-60` 与 `TC-61` 随桌面条目类和窗口管理器迁入实现仓 `tsic404/kos-dashboard` 的
 `tests/acceptance/DASH-TC-59/`、`tests/acceptance/DASH-TC-60/` 与 `tests/acceptance/DASH-TC-61/`；
