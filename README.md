@@ -132,6 +132,8 @@ KOS 是运行在 Kubernetes 上的 homelab 操作系统。「kosd」有两种用
 | `tests/acceptance/KOSD-TC-114/` | 通知与文件产品按声明装载、事件投递与卷内访问生效，逐项卸载后其余产品与内核集合不变 |
 | `tests/acceptance/KOSD-TC-121/` | 维护预检列出 node-local 应用与停机时长，停止先于驱逐，可迁移应用迁出，恢复后回到 Ready 且应用 spec 不变 |
 | `tests/acceptance/KOSD-TC-122/` | 绕过控制面的 cordon 显示为计划外维护并列出受影响应用，人工撤销后归属消失，只驱逐不标记不产生归属，非 Owner 只读 |
+| `tests/acceptance/KOSD-TC-176/` | 未摘除的节点拒绝驱逐并指出节点，字段、Pod 与审计不变；摘除后同一请求被接受并留下一条驱逐记录 |
+| `tests/acceptance/KOSD-TC-177/` | 扩展控制器写不可调度字段（置位与清除）被拒绝并点名主体与对象；Member 经维护入口的发起、驱逐与恢复均被拒绝；字段与 Pod 不变、无维护或驱逐记录；Owner 经流程的摘除仍被接受并记录 |
 
 ## 对象模型
 
