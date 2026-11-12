@@ -42,6 +42,11 @@ const (
 	// (C-64): an application's events follow C-59, while every other object's
 	// events reach only the global Owner and the member owning the object.
 	VerbEventRead Verb = "event-read"
+	// VerbDeletePod deletes one Pod of an application's runtime (C-77). The
+	// Pod is not a KOS object, so the request is judged as a write to the
+	// application that owns it, and the audit verb stays distinct from the
+	// application lifecycle actions C-66 records.
+	VerbDeletePod Verb = "delete-pod"
 )
 
 // Request is what the authorization seam judges.
@@ -282,6 +287,11 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /api/v1/diagnostics/{namespace}/{name}/bundle", s.handleDiagnosticsBundle)
 	s.mux.HandleFunc("POST /api/v1/diagnostics/bundles", s.handleDiagnosticsExport)
 	s.mux.HandleFunc("GET /api/v1/logs/{namespace}/{name}", s.handleApplicationLogs)
+	// The Pod surface is one read projection and one delete of a named Pod
+	// (C-76, C-77, F-20): no create, no spec write, no terminal and no port
+	// forwarding have a route.
+	s.mux.HandleFunc("GET /api/v1/pods/{namespace}/{name}", s.handleApplicationPods)
+	s.mux.HandleFunc("DELETE /api/v1/pods/{namespace}/{name}/{pod}", s.handlePodDelete)
 	s.mux.HandleFunc("GET /api/v1/events", s.handleEvents)
 	// The health endpoint is the probe surface: it answers before any session
 	// exists and carries only the verdict and its reason, never the internal

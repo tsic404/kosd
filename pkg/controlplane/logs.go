@@ -18,7 +18,6 @@ import (
 	"k8s.io/client-go/kubernetes"
 
 	"github.com/tsic404/kosd/api/v1beta1"
-	"github.com/tsic404/kosd/pkg/app"
 )
 
 // Log read bounds (C-64): every read has a line and a time-window upper bound.
@@ -171,7 +170,7 @@ func (s *Server) handleApplicationLogs(w http.ResponseWriter, r *http.Request) {
 		writeError(w, failure)
 		return
 	}
-	targets, err := s.applicationLogTargets(r.Context(), observed.Object)
+	targets, err := s.podLogTargets(r.Context(), observed.Object, r.URL.Query().Get("pod"))
 	if err != nil {
 		writeError(w, s.clusterReadFailure(err, ref))
 		return
@@ -226,52 +225,27 @@ func (s *Server) handleApplicationLogs(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, result)
 }
 
-// applicationLogTargets locks a read to the application's own workloads (C-64):
-// it walks status.rendered, reads each workload's pod selector and lists the
-// pods that selector matches in the workload's namespace. A pod of another
-// application in the same namespace carries other labels and is not returned.
-func (s *Server) applicationLogTargets(ctx context.Context, application map[string]any) ([]logTarget, error) {
-	namespace := nestedText(application, "spec", "namespace")
-	if namespace == "" {
-		namespace = nestedText(application, "metadata", "namespace")
+// podLogTargets locks a read to the application's own workload pods (C-64). A
+// non-empty pod narrows the read to that one Pod's containers (C-77); a Pod the
+// application does not own contributes nothing.
+func (s *Server) podLogTargets(ctx context.Context, application map[string]any, pod string) ([]logTarget, error) {
+	pods, err := s.applicationPods(ctx, application)
+	if err != nil {
+		return nil, err
 	}
-	rendered := renderedRefs(application)
-	targets := make([]logTarget, 0, len(rendered))
+	targets := make([]logTarget, 0, len(pods))
 	seen := make(map[string]bool)
-	pods := make(map[string][]ObservedObject)
-	for _, ref := range app.WorkloadRefs(rendered) {
-		objectType, known := workloadClass[ref.Kind]
-		if !known {
+	for _, selected := range pods {
+		if pod != "" && selected.Name != pod {
 			continue
 		}
-		if ref.Version != "" {
-			objectType.Version = ref.Version
-		}
-		workloadNamespace := ref.Namespace
-		if workloadNamespace == "" {
-			workloadNamespace = namespace
-		}
-		observed, err := s.source.Get(ctx, objectType, workloadNamespace, ref.Name)
-		if apierrors.IsNotFound(err) {
-			// A workload that is gone has no pods to read.
-			continue
-		}
-		if err != nil {
-			return nil, err
-		}
-		selected, err := s.workloadPods(ctx, objectType.Kind, observed.Object, workloadNamespace, pods)
-		if err != nil {
-			return nil, err
-		}
-		for _, pod := range selected {
-			for _, container := range podContainers(pod.Object) {
-				key := workloadNamespace + "/" + pod.Name + "/" + container
-				if seen[key] {
-					continue
-				}
-				seen[key] = true
-				targets = append(targets, logTarget{Namespace: workloadNamespace, Pod: pod.Name, Container: container})
+		for _, container := range podContainers(selected.Object) {
+			key := selected.Namespace + "/" + selected.Name + "/" + container
+			if seen[key] {
+				continue
 			}
+			seen[key] = true
+			targets = append(targets, logTarget{Namespace: selected.Namespace, Pod: selected.Name, Container: container})
 		}
 	}
 	sort.Slice(targets, func(left, right int) bool {
@@ -288,22 +262,24 @@ func (s *Server) applicationLogTargets(ctx context.Context, application map[stri
 
 // selectedPod is one pod a workload's selector matched.
 type selectedPod struct {
-	Name   string
-	Object map[string]any
+	Namespace  string
+	Name       string
+	ObservedAt time.Time
+	Object     map[string]any
 }
 
 // workloadPods lists the pods one workload owns, through the selector the
 // workload declares. A pod-kind workload is its own pod. The namespace lists
 // are shared across workloads of one read, so one namespace is read once.
-func (s *Server) workloadPods(ctx context.Context, kind string, workload map[string]any, namespace string, cache map[string][]ObservedObject) ([]selectedPod, error) {
+func (s *Server) workloadPods(ctx context.Context, kind string, workload ObservedObject, namespace string, cache map[string][]ObservedObject) ([]selectedPod, error) {
 	if kind == "Pod" {
-		name := nestedText(workload, "metadata", "name")
+		name := nestedText(workload.Object, "metadata", "name")
 		if name == "" {
 			return nil, nil
 		}
-		return []selectedPod{{Name: name, Object: workload}}, nil
+		return []selectedPod{{Namespace: namespace, Name: name, ObservedAt: workload.ObservedAt, Object: workload.Object}}, nil
 	}
-	selector, err := workloadSelector(kind, workload)
+	selector, err := workloadSelector(kind, workload.Object)
 	if err != nil {
 		return nil, err
 	}
@@ -324,7 +300,7 @@ func (s *Server) workloadPods(ctx context.Context, kind string, workload map[str
 		if !selector.Matches(labels.Set(stringMap(metadata["labels"]))) {
 			continue
 		}
-		matched = append(matched, selectedPod{Name: text(metadata["name"]), Object: pod.Object})
+		matched = append(matched, selectedPod{Namespace: namespace, Name: text(metadata["name"]), ObservedAt: pod.ObservedAt, Object: pod.Object})
 	}
 	return matched, nil
 }

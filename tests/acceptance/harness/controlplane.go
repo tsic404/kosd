@@ -137,6 +137,15 @@ func (r *AuditRecorder) Verbs() []string {
 	return verbs
 }
 
+// Records returns a copy of the recorded audit records in order.
+func (r *AuditRecorder) Records() []controlplane.AuditRecord {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	records := make([]controlplane.AuditRecord, len(r.records))
+	copy(records, r.records)
+	return records
+}
+
 // Actors returns the recorded actors in order.
 func (r *AuditRecorder) Actors() []string {
 	r.mu.Lock()
