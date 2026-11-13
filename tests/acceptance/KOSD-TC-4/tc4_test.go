@@ -40,6 +40,16 @@ func declaration() extension.Declaration {
 			DiscoveryAdapters:  []extension.DiscoveryAdapter{{ID: "widget-discovery"}},
 			DiagnosticAdapters: []extension.DiagnosticAdapter{{ID: "widget-diagnostics"}},
 			Preferences:        []extension.PreferenceSchema{{ID: "widget-view", Keys: []string{"view", "columns"}}},
+			Apps: []extension.App{{
+				ID: "widgets", Name: "Widgets", Version: "1.0.0",
+				Icon:  "https://widgets.example.test/icon.svg",
+				Entry: "https://widgets.example.test/",
+				Window: extension.AppWindow{
+					Width: 1024, Height: 720, MinWidth: 640, MinHeight: 480,
+					Resizable: true, Mode: extension.AppWindowSingle, DefaultState: extension.AppStateNormal,
+				},
+				Permissions: []string{"notifications"},
+			}},
 		},
 	}
 }
@@ -87,6 +97,10 @@ func TestTC4EveryDeclaredContributionIsVisible(t *testing.T) {
 		len(contributions.Preferences[0].Keys) != 2 {
 		t.Fatalf("preferences = %v", contributions.Preferences)
 	}
+	if len(contributions.Apps) != 1 || contributions.Apps[0].ID != "widgets" ||
+		contributions.Apps[0].Entry != "https://widgets.example.test/" {
+		t.Fatalf("apps = %v", contributions.Apps)
+	}
 
 	registry := installation.Registry()
 	if !registry.IsServing("widgets.example.test", "Widget") {
@@ -101,6 +115,9 @@ func TestTC4EveryDeclaredContributionIsVisible(t *testing.T) {
 	if len(registry.CatalogueSources()) != 1 || len(registry.DiscoveryAdapters()) != 1 ||
 		len(registry.DiagnosticAdapters()) != 1 || len(registry.Preferences()) != 1 {
 		t.Fatal("a declared contribution class is missing from the registry")
+	}
+	if apps := registry.Apps(); len(apps) != 1 || apps[0].Manifest.ID != "widgets" {
+		t.Fatalf("apps = %+v, want the declared application", apps)
 	}
 
 	status := cluster.ComponentStatus(t, "widgets")

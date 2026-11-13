@@ -40,6 +40,16 @@ func fullDeclaration(identifier string) Declaration {
 			DiscoveryAdapters:  []DiscoveryAdapter{{ID: "widget-discovery", Covers: []GroupKind{{Kind: "Node"}}}},
 			DiagnosticAdapters: []DiagnosticAdapter{{ID: "widget-diagnostics", Covers: []GroupKind{{Group: "widgets.example.test", Kind: "Widget"}}}},
 			Preferences:        []PreferenceSchema{{ID: "widget-view", Keys: []string{"view", "columns"}}},
+			Apps: []App{{
+				ID: "widgets", Name: "Widgets", Version: "1.0.0",
+				Icon:  "https://widgets.example.test/icon.svg",
+				Entry: "https://widgets.example.test/",
+				Window: AppWindow{
+					Width: 1024, Height: 720, MinWidth: 640, MinHeight: 480,
+					Resizable: true, Mode: AppWindowSingle, DefaultState: AppStateNormal,
+				},
+				Permissions: []string{"notifications"},
+			}},
 		},
 	}
 }
@@ -65,6 +75,7 @@ func TestLoadKeepsEveryContributionClass(t *testing.T) {
 		ClassDiscoveryAdapters:  len(contributions.DiscoveryAdapters),
 		ClassDiagnosticAdapters: len(contributions.DiagnosticAdapters),
 		ClassPreferences:        len(contributions.Preferences),
+		ClassApps:               len(contributions.Apps),
 	}
 	for class, count := range counts {
 		if count != 1 {

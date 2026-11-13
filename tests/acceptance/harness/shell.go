@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/tsic404/kosd/pkg/apps"
 	"github.com/tsic404/kosd/pkg/appstore"
 	"github.com/tsic404/kosd/pkg/catalogue"
 	"github.com/tsic404/kosd/pkg/controlplane"
@@ -57,6 +58,11 @@ func (r *RegistrySource) Pages() []extension.Page {
 	return r.current().Pages()
 }
 
+// Apps returns the loaded window applications (C-18, KOSD-C-73).
+func (r *RegistrySource) Apps() []extension.InstalledApp {
+	return r.current().Apps()
+}
+
 // PageFor resolves one page a session role may see (C-22).
 func (r *RegistrySource) PageFor(id string, role write.Role) (extension.Page, bool) {
 	return r.current().PageFor(id, role)
@@ -100,6 +106,8 @@ type Shell struct {
 	Catalogue *catalogue.Service
 	// Pages is the page shell.
 	Pages *pages.Service
+	// Apps is the window application projection (C-73).
+	Apps *apps.Service
 	// Logs is everything the control plane logged during the case; C-14's
 	// sensitivity boundary reads it.
 	Logs *bytes.Buffer
@@ -137,9 +145,11 @@ func (c *Cluster) StartShell(t *testing.T, configure ...func(*pages.Config)) *Sh
 		apply(&pageConfig)
 	}
 	pagesService := pages.New(registry, pageConfig)
+	appsService := apps.New(registry)
 	settingsHandler := settings.NewAPI(settingsService).Handler()
 	catalogueHandler := catalogue.NewAPI(catalogueService).Handler()
 	pagesHandler := pages.NewAPI(pagesService).Handler()
+	appsHandler := apps.NewAPI(appsService).Handler()
 
 	mux := http.NewServeMux()
 	mux.Handle("/api/v1/settings", settingsHandler)
@@ -147,6 +157,7 @@ func (c *Cluster) StartShell(t *testing.T, configure ...func(*pages.Config)) *Sh
 	mux.Handle("/api/v1/catalogue/", catalogueHandler)
 	mux.Handle("/api/v1/pages", pagesHandler)
 	mux.Handle("/api/v1/pages/", pagesHandler)
+	mux.Handle("/api/v1/apps", appsHandler)
 	mux.Handle("/", server.Handler())
 	surface.Serve(t, mux)
 
@@ -158,6 +169,7 @@ func (c *Cluster) StartShell(t *testing.T, configure ...func(*pages.Config)) *Sh
 		Settings:  settingsService,
 		Catalogue: catalogueService,
 		Pages:     pagesService,
+		Apps:      appsService,
 		Logs:      logs,
 	}
 }

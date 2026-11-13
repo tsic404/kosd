@@ -152,24 +152,29 @@ func breakComponent(t *testing.T, scenario string, cluster *harness.Cluster, art
 	t.Helper()
 	switch scenario {
 	case "package-unreadable":
-		cluster.RepointComponent(t, "drop", "test://missing-artifact", extension.DigestOf(artifacts["test://drop"]))
+		cluster.RepointComponent(t, "drop", "test://missing-artifact", "sha256:"+strings.Repeat("1", 64))
 	case "digest-mismatch":
 		cluster.RepointComponent(t, "drop", "test://drop", "sha256:"+strings.Repeat("0", 64))
 	case "invalid-declaration":
-		content := []byte("this is not a declaration")
+		// A well-formed package whose declaration names no identifier: the
+		// artifact verifies, the declaration does not load.
+		content, digest, err := extension.Pack(extension.Declaration{}, nil)
+		if err != nil {
+			t.Fatalf("pack the empty declaration: %v", err)
+		}
 		artifacts["test://broken"] = content
-		cluster.RepointComponent(t, "drop", "test://broken", extension.DigestOf(content))
+		cluster.RepointComponent(t, "drop", "test://broken", digest)
 	case "dependency-missing":
 		dependent := dropDeclaration()
 		dependent.Dependencies = extension.Dependencies{
 			Capabilities: []extension.CapabilityRequirement{{Name: "demo.absent/api", Versions: "v1"}},
 		}
-		content, err := extension.Marshal(dependent)
+		content, digest, err := extension.Pack(dependent, nil)
 		if err != nil {
-			t.Fatalf("marshal the dependent declaration: %v", err)
+			t.Fatalf("pack the dependent declaration: %v", err)
 		}
 		artifacts["test://dependent"] = content
-		cluster.RepointComponent(t, "drop", "test://dependent", extension.DigestOf(content))
+		cluster.RepointComponent(t, "drop", "test://dependent", digest)
 	default:
 		t.Fatalf("unknown scenario %q", scenario)
 	}
@@ -214,7 +219,7 @@ func TestTC15TransientComponentFailureKeepsPreferences(t *testing.T) {
 			}
 
 			// Recovering the package makes the same data readable again.
-			cluster.RepointComponent(t, "drop", "test://drop", extension.DigestOf(artifacts["test://drop"]))
+			cluster.RepointComponent(t, "drop", "test://drop", harness.PackageDigest(t, artifacts["test://drop"]))
 			installation = cluster.ExtensionStateWith(t, artifacts, shell.Retention())
 			shell.Use(installation)
 			status, body = shell.Call(t, http.MethodGet, dropDomain, nil, token)

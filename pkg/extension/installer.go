@@ -365,11 +365,11 @@ func (i *Installer) Preflight(ctx context.Context, target []string) (FrameworkPr
 		if err != nil {
 			continue
 		}
-		declaration, err := Parse(content)
+		artifact, err := Read(content)
 		if err != nil {
 			continue
 		}
-		loaded, err := declaration.Load()
+		loaded, err := artifact.Declaration.Load()
 		if err != nil {
 			continue
 		}

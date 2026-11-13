@@ -131,12 +131,12 @@ func TestTC9CatalogueEntrySyncAndDigest(t *testing.T) {
 	changedSpec := definition(t, template)
 	changedSpec.Template = template + "data:\n  extra: \"changed\"\n"
 	changed := declaration(changedSpec)
-	content, err := extension.Marshal(changed)
+	content, changedDigest, err := extension.Pack(changed, nil)
 	if err != nil {
-		t.Fatalf("marshal changed declaration: %v", err)
+		t.Fatalf("pack changed declaration: %v", err)
 	}
 	artifacts["test://appstore-changed"] = content
-	cluster.RepointComponent(t, "appstore", "test://appstore-changed", extension.DigestOf(content))
+	cluster.RepointComponent(t, "appstore", "test://appstore-changed", changedDigest)
 	shell.Use(cluster.ExtensionStateWith(t, artifacts, shell.Retention()))
 	shell.SyncCatalogue(t)
 

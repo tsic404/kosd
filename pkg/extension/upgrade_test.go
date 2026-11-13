@@ -36,12 +36,12 @@ func upgradeDeclaration(identifier string) Declaration {
 // the digest the component must name.
 func publishUpgradePackage(t *testing.T, artifacts MemoryArtifacts, reference string, declaration Declaration) string {
 	t.Helper()
-	content, err := Marshal(declaration)
+	content, digest, err := Pack(declaration, nil)
 	if err != nil {
-		t.Fatalf("marshal %s: %v", reference, err)
+		t.Fatalf("pack %s: %v", reference, err)
 	}
 	artifacts[reference] = content
-	return DigestOf(content)
+	return digest
 }
 
 // upgradeComponent builds a live system component that names one package.
@@ -260,7 +260,7 @@ func TestUpgradePreflightReportsAnUnverifiedTargetPackage(t *testing.T) {
 	installer := upgradeInstaller(t, artifacts,
 		upgradeComponent("widgets", "demo-widgets-v1", fromDigest, managedLabels()))
 	preflight, err := installer.UpgradePreflight(context.Background(), []UpgradeTarget{{
-		Component: "widgets", Reference: "demo-widgets-v2", Digest: DigestOf([]byte("other artifact")),
+		Component: "widgets", Reference: "demo-widgets-v2", Digest: "sha256:" + strings.Repeat("9", 64),
 	}})
 	if err != nil {
 		t.Fatalf("preflight: %v", err)

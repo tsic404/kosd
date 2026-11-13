@@ -123,11 +123,11 @@ func installedDeclaration(name string, request Request) (Declaration, error) {
 	if request.Package == nil || request.Package.Reference == "" {
 		return Declaration{}, fmt.Errorf("component %s: installed package is missing", name)
 	}
-	declaration, err := Parse(request.Package.Content)
+	artifact, err := request.Package.Verify()
 	if err != nil {
 		return Declaration{}, fmt.Errorf("component %s: %w", name, err)
 	}
-	return declaration, nil
+	return artifact.Declaration, nil
 }
 
 // upgradedRequest swaps one component's package for the target package. A
@@ -148,14 +148,11 @@ func (i *Installer) upgradedRequest(ctx context.Context, current Request, target
 		return request, Contributions{}, false
 	}
 	request.Package = &Package{Reference: target.Reference, Digest: target.Digest, Content: content}
-	if err := request.Package.Verify(); err != nil {
-		return request, Contributions{}, false
-	}
-	declaration, err := Parse(content)
+	artifact, err := request.Package.Verify()
 	if err != nil {
 		return request, Contributions{}, false
 	}
-	return request, declaration.Contributions, true
+	return request, artifact.Declaration.Contributions, true
 }
 
 // upgradeProblems renders the evaluation problems of one target: unmet

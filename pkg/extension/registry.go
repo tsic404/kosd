@@ -2,6 +2,7 @@ package extension
 
 import (
 	"fmt"
+	"sort"
 
 	"github.com/tsic404/kosd/pkg/controlplane"
 	"github.com/tsic404/kosd/pkg/write"
@@ -21,11 +22,79 @@ type Registry struct {
 	discovery    []DiscoveryAdapter
 	diagnostics  []DiagnosticAdapter
 	preferences  []PreferenceSchema
+	// apps are the window applications the active components declare (C-18, KOSD-C-73).
+	apps []InstalledApp
 	// preferenceKeys maps an extension identifier to the keys it declared
 	// (C-27).
 	preferenceKeys map[string][]string
 	declaredBy     map[GroupKind]string
 	writers        map[GroupKind][]write.Role
+}
+
+// InstalledApp is one window application an active component declares, with the
+// component and the verified package the desktop needs to open it (C-18,
+// KOSD-C-73). The extension identifier is what the asset address and the deep
+// link resolve against.
+type InstalledApp struct {
+	Extension string `json:"extension"`
+	Component string `json:"component"`
+	Phase     string `json:"phase"`
+	Digest    string `json:"digest,omitempty"`
+	Manifest  App    `json:"manifest"`
+}
+
+// Apps returns every installed window application. A component that is not
+// active, or one whose application class failed to load, contributes none.
+func (r *Registry) Apps() []InstalledApp {
+	if r == nil {
+		return []InstalledApp{}
+	}
+	return append([]InstalledApp{}, r.apps...)
+}
+
+// AppsOf returns the window applications one extension identifier declares. An
+// uninstalled identifier has no applications, never another extension's.
+func (r *Registry) AppsOf(identifier string) []InstalledApp {
+	if r == nil {
+		return nil
+	}
+	apps := make([]InstalledApp, 0, len(r.apps))
+	for _, app := range r.apps {
+		if app.Extension == identifier {
+			apps = append(apps, app)
+		}
+	}
+	return apps
+}
+
+// installedApps projects one entry per declared application, carrying the
+// declaring extension, the installed component, and the phase and digest the
+// desktop judges it by (C-18, C-73). Contributions already passed the class
+// loaders in buildRegistry, so an invalid application never reaches here.
+func installedApps(active []activated, effective map[string]Contributions, outcomes map[string]*ComponentResult) []InstalledApp {
+	apps := make([]InstalledApp, 0, len(active))
+	for _, component := range active {
+		result, ok := outcomes[component.name]
+		if !ok {
+			continue
+		}
+		for _, app := range effective[component.name].Apps {
+			apps = append(apps, InstalledApp{
+				Extension: component.loaded.Identifier,
+				Component: component.name,
+				Phase:     result.Phase,
+				Digest:    result.Digest,
+				Manifest:  app,
+			})
+		}
+	}
+	sort.SliceStable(apps, func(left, right int) bool {
+		if apps[left].Extension != apps[right].Extension {
+			return apps[left].Extension < apps[right].Extension
+		}
+		return apps[left].Manifest.ID < apps[right].Manifest.ID
+	})
+	return apps
 }
 
 // DeclaredBy names the extension that declares one served class (C-14). It is
