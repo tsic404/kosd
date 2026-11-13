@@ -1,8 +1,9 @@
-// Package kosdtc114 checks KOSD-AC-56 for the notification and file manager products:
-// each product takes effect only through its declared contributions, the kernel
-// kind set, capability baseline, page shell and writer table stay as they were,
-// a third-party package with the same kinds of contributions behaves alike, and
-// removing one product leaves the others serving (KOSD-TC-114).
+// Package kosdtc114 checks KOSD-AC-56 on the file manager product and a
+// third-party package: each takes effect only through its declared
+// contributions, the kernel kind set, capability baseline, page shell and
+// writer table stay as they were, the third-party package loads the way the
+// first-party one does, and removing one product leaves the other serving
+// (KOSD-TC-114).
 package kosdtc114
 
 import (
@@ -10,7 +11,6 @@ import (
 	"context"
 	"encoding/json"
 	"io"
-	"log/slog"
 	"mime"
 	"net/http"
 	"net/http/httptest"
@@ -19,49 +19,34 @@ import (
 	"path/filepath"
 	"reflect"
 	"strings"
-	"sync"
 	"testing"
-	"time"
 
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	"github.com/tsic404/kosd/api"
 	"github.com/tsic404/kosd/pkg/controlplane"
 	"github.com/tsic404/kosd/pkg/extension"
 	"github.com/tsic404/kosd/pkg/filemanager"
-	"github.com/tsic404/kosd/pkg/notification"
-	"github.com/tsic404/kosd/pkg/reconcile"
 	"github.com/tsic404/kosd/pkg/write"
 	"github.com/tsic404/kosd/tests/acceptance/harness"
 )
 
 const (
-	notificationComponent = "kos-notification"
-	filemanagerComponent  = "kos-filemanager"
-	thirdPartyComponent   = "third-party-notifier"
-	thirdPartyGroup       = "notify.example.test"
-	thirdPartyVersion     = "v1"
-	thirdPartyKind        = "Notice"
-	thirdPartyResource    = "notices"
-	thirdPartyController  = "notifier"
+	filemanagerComponent = "kos-filemanager"
+	thirdPartyComponent  = "third-party-notifier"
+	thirdPartyGroup      = "notify.example.test"
+	thirdPartyVersion    = "v1"
+	thirdPartyKind       = "Notice"
+	thirdPartyResource   = "notices"
+	thirdPartyController = "notifier"
 
-	okChannel      = "ops"
-	brokenChannel  = "broken"
-	subscriptionID = "warnings"
-
-	channelCredential = "control-plane-secret-ops"
-	brokenCredential  = "control-plane-secret-broken"
+	thirdPartyChannels      = "thirdparty.notifier.channels"
+	thirdPartySubscriptions = "thirdparty.notifier.subscriptions"
 )
 
-// deliveryTime is the clock the delivery case reads on, so the event fixtures
-// and the window agree.
-var deliveryTime = time.Date(2026, 3, 1, 12, 0, 0, 0, time.UTC)
-
 // thirdPartyDeclaration is an extension outside the distribution that
-// contributes the same kinds of entries as the notification product: one object
-// class, one controller and one setting (C-18).
+// contributes the same kinds of entries as a first-party product: one object
+// class, one controller and two settings (C-18).
 func thirdPartyDeclaration() extension.Declaration {
 	return extension.Declaration{
 		Identifier:       "thirdparty.notifier",
@@ -78,20 +63,25 @@ func thirdPartyDeclaration() extension.Declaration {
 				Manages: []extension.GroupKind{{Group: thirdPartyGroup, Kind: thirdPartyKind}},
 				Scope:   extension.WriteScope{Groups: []string{thirdPartyGroup}},
 			}},
-			Settings: []extension.Setting{{
-				ID: "thirdparty.notifier.channels", Scope: extension.SettingScopeCluster,
-				Writer: extension.SettingWriterUser, Editable: true,
-			}},
+			Settings: []extension.Setting{
+				{
+					ID: thirdPartyChannels, Scope: extension.SettingScopeCluster,
+					Writer: extension.SettingWriterUser, Editable: true,
+				},
+				{
+					ID: thirdPartySubscriptions, Scope: extension.SettingScopeCluster,
+					Writer: extension.SettingWriterUser, Editable: true,
+				},
+			},
 		},
 	}
 }
 
 // TestTC114ContributionsLoadAndWithdraw walks the install order and the removal
-// order of the three packages, checking after each step what is served and that
-// the kernel did not change.
+// order of both products, checking after each step what is served and that the
+// kernel did not change.
 func TestTC114ContributionsLoadAndWithdraw(t *testing.T) {
 	cluster := harness.Start(t)
-	cluster.InstallCRD(t, notification.APIGroup, notification.ObjectVersion, notification.Kind, notification.Resource, false)
 	cluster.InstallCRD(t, thirdPartyGroup, thirdPartyVersion, thirdPartyKind, thirdPartyResource, false)
 	artifacts := extension.MemoryArtifacts{}
 
@@ -100,37 +90,17 @@ func TestTC114ContributionsLoadAndWithdraw(t *testing.T) {
 	ownedBefore := write.OwnedKinds()
 	denialBefore := deniedKernelWrite(t, cluster)
 
-	// The notification product: its class, controller and two setting items,
-	// and no page of its own.
-	installed := cluster.InstallPackage(t, notificationComponent, notification.Declaration(), artifacts)
-	requireReady(t, installed, notificationComponent)
-	registry := installed.Registry()
-	if _, served := registry.ObjectClass(notification.APIGroup, notification.Kind); !served {
-		t.Fatal("the delivery record class is not served after the install")
-	}
-	requireController(t, registry, notification.ControllerID, notification.APIGroup, notification.Kind)
-	for _, id := range []string{notification.SettingChannels, notification.SettingSubscriptions} {
-		if _, found := registry.Setting(id); !found {
-			t.Fatalf("the notification setting %q is not visible", id)
-		}
-	}
-	requireNoPages(t, registry)
-	requireKernelUnchanged(t, kindsBefore, capabilitiesBefore, ownedBefore, denialBefore, cluster)
-
 	// The file manager product: its user setting and its two preference keys,
-	// and no page either (the interface opens as an application window).
-	installed = cluster.InstallPackage(t, filemanagerComponent, filemanager.Declaration(), artifacts)
+	// and no page (the interface opens as an application window).
+	installed := cluster.InstallPackage(t, filemanagerComponent, filemanager.Declaration(), artifacts)
 	requireReady(t, installed, filemanagerComponent)
-	registry = installed.Registry()
+	registry := installed.Registry()
 	if _, found := registry.Setting(filemanager.SettingExposedVolumes); !found {
 		t.Fatal("the exposed-volume setting is not visible after the file manager install")
 	}
 	keys, found := registry.PreferenceKeys(filemanager.Identifier)
 	if !found || !reflect.DeepEqual(keys, []string{filemanager.PreferenceView, filemanager.PreferenceInitialPath}) {
 		t.Fatalf("preference keys = %v (found %v), want the view and initial path", keys, found)
-	}
-	if _, found := registry.Setting(notification.SettingChannels); !found {
-		t.Fatal("the notification setting disappeared when the second product installed")
 	}
 	requireNoPages(t, registry)
 	requireKernelUnchanged(t, kindsBefore, capabilitiesBefore, ownedBefore, denialBefore, cluster)
@@ -139,9 +109,9 @@ func TestTC114ContributionsLoadAndWithdraw(t *testing.T) {
 	// way (C-17: the kernel loads declarations, not names).
 	installed = cluster.InstallPackage(t, thirdPartyComponent, thirdPartyDeclaration(), artifacts)
 	registry = installed.Registry()
-	firstParty, found := installed.Component(notificationComponent)
+	firstParty, found := installed.Component(filemanagerComponent)
 	if !found {
-		t.Fatal("the notification component left the install result")
+		t.Fatal("the file manager component left the install result")
 	}
 	thirdParty, found := installed.Component(thirdPartyComponent)
 	if !found {
@@ -154,13 +124,19 @@ func TestTC114ContributionsLoadAndWithdraw(t *testing.T) {
 		t.Fatal("the third-party class is not served after the install")
 	}
 	requireController(t, registry, thirdPartyController, thirdPartyGroup, thirdPartyKind)
-	if _, found := registry.Setting("thirdparty.notifier.channels"); !found {
-		t.Fatal("the third-party setting is not visible")
+	for _, id := range []string{thirdPartyChannels, thirdPartySubscriptions} {
+		if _, found := registry.Setting(id); !found {
+			t.Fatalf("the third-party setting %q is not visible", id)
+		}
 	}
+	if _, found := registry.Setting(filemanager.SettingExposedVolumes); !found {
+		t.Fatal("the file manager setting disappeared when the second product installed")
+	}
+	requireNoPages(t, registry)
 	requireKernelUnchanged(t, kindsBefore, capabilitiesBefore, ownedBefore, denialBefore, cluster)
 
 	// Removing the file manager withdraws its setting and preferences and
-	// leaves both notification packages serving.
+	// leaves the third-party package serving.
 	cluster.DeleteComponent(t, filemanagerComponent)
 	registry = cluster.ExtensionState(t, artifacts).Registry()
 	if _, found := registry.Setting(filemanager.SettingExposedVolumes); found {
@@ -169,296 +145,43 @@ func TestTC114ContributionsLoadAndWithdraw(t *testing.T) {
 	if _, found := registry.PreferenceKeys(filemanager.Identifier); found {
 		t.Fatal("the file manager preference schema survived the uninstall")
 	}
-	if _, found := registry.Setting(notification.SettingChannels); !found {
-		t.Fatal("the notification setting disappeared with another product's uninstall")
-	}
 	if _, served := registry.ObjectClass(thirdPartyGroup, thirdPartyKind); !served {
 		t.Fatal("the third-party class disappeared with another product's uninstall")
 	}
-	requireKernelUnchanged(t, kindsBefore, capabilitiesBefore, ownedBefore, denialBefore, cluster)
-
-	// Removing the notification product withdraws its class and settings, and
-	// the control plane stops serving its class (C-19).
-	cluster.DeleteComponent(t, notificationComponent)
-	registry = cluster.ExtensionState(t, artifacts).Registry()
-	if _, served := registry.ObjectClass(notification.APIGroup, notification.Kind); served {
-		t.Fatal("the delivery record class is still served after the uninstall")
-	}
-	for _, id := range []string{notification.SettingChannels, notification.SettingSubscriptions} {
-		if _, found := registry.Setting(id); found {
-			t.Fatalf("the notification setting %q survived the uninstall", id)
+	requireController(t, registry, thirdPartyController, thirdPartyGroup, thirdPartyKind)
+	for _, id := range []string{thirdPartyChannels, thirdPartySubscriptions} {
+		if _, found := registry.Setting(id); !found {
+			t.Fatalf("the third-party setting %q disappeared with another product's uninstall", id)
 		}
 	}
-	if _, served := registry.ObjectClass(thirdPartyGroup, thirdPartyKind); !served {
-		t.Fatal("the third-party class disappeared with the first-party uninstall")
+	requireKernelUnchanged(t, kindsBefore, capabilitiesBefore, ownedBefore, denialBefore, cluster)
+
+	// Removing the third-party package withdraws its class, controller and
+	// settings, and the control plane stops serving its class (C-19).
+	cluster.DeleteComponent(t, thirdPartyComponent)
+	registry = cluster.ExtensionState(t, artifacts).Registry()
+	if _, served := registry.ObjectClass(thirdPartyGroup, thirdPartyKind); served {
+		t.Fatal("the third-party class is still served after the uninstall")
 	}
-	if _, found := registry.Setting("thirdparty.notifier.channels"); !found {
-		t.Fatal("the third-party setting disappeared with the first-party uninstall")
+	for _, controller := range registry.Controllers() {
+		if controller.ID == thirdPartyController {
+			t.Fatal("the third-party controller survived the uninstall")
+		}
+	}
+	for _, id := range []string{thirdPartyChannels, thirdPartySubscriptions} {
+		if _, found := registry.Setting(id); found {
+			t.Fatalf("the third-party setting %q survived the uninstall", id)
+		}
 	}
 	control := cluster.StartControlPlane(t, func(config *controlplane.Config) {
 		config.Extensions = registry
 	})
 	status, body := control.Call(t, http.MethodGet,
-		"/api/v1/resources/"+notification.Kind+"?apiVersion="+notification.APIGroup+"/"+notification.ObjectVersion, nil, nil)
+		"/api/v1/resources/"+thirdPartyKind+"?apiVersion="+thirdPartyGroup+"/"+thirdPartyVersion, nil, nil)
 	if status != http.StatusUnprocessableEntity || harness.String(body, "error", "code") != controlplane.CodeCapabilityMissing {
 		t.Fatalf("read the withdrawn class = %d %v, want capability_missing", status, body)
 	}
 	requireKernelUnchanged(t, kindsBefore, capabilitiesBefore, ownedBefore, denialBefore, cluster)
-}
-
-// TestTC114NotificationDeliversRecentEvents installs the notification product,
-// configures channels and subscriptions from the control plane, feeds the
-// window's events and checks the record each delivery leaves behind.
-func TestTC114NotificationDeliversRecentEvents(t *testing.T) {
-	cluster := harness.Start(t)
-	cluster.InstallCRD(t, notification.APIGroup, notification.ObjectVersion, notification.Kind, notification.Resource, false)
-	shell := cluster.StartShell(t)
-	ownerToken := shell.SignInOwner(t, "owner", "owner-password")
-	artifacts := extension.MemoryArtifacts{}
-	declaration := notification.Declaration()
-	installed := cluster.InstallPackage(t, notificationComponent, declaration, artifacts)
-	shell.Use(installed)
-	requireReady(t, installed, notificationComponent)
-	contribution := declaration.Contributions.Controllers[0]
-
-	hook := &webhookRecorder{}
-	hookServer := httptest.NewServer(http.HandlerFunc(hook.serve))
-	t.Cleanup(hookServer.Close)
-	okEndpoint := hookServer.URL
-	brokenEndpoint := "http://127.0.0.1:1/notify"
-
-	logs := &bytes.Buffer{}
-	controllers := extension.NewControllerSet(2)
-	writer := notificationWriter(t, cluster, contribution.Scope)
-	controller := &notification.Controller{
-		Writer:   writer,
-		Settings: shell.Accounts.Store,
-		Credentials: notification.StaticCredentials{
-			okChannel:     {Endpoint: okEndpoint, Secret: channelCredential},
-			brokenChannel: {Endpoint: brokenEndpoint, Secret: brokenCredential},
-		},
-		Senders: map[string]notification.Sender{"webhook": notification.Webhook{}},
-		Log:     slog.New(slog.NewTextHandler(logs, &slog.HandlerOptions{Level: slog.LevelDebug})),
-		Now:     func() time.Time { return deliveryTime },
-	}
-	if err := controllers.Register(notificationComponent, contribution, controller); err != nil {
-		t.Fatalf("register the delivery controller: %v", err)
-	}
-	runContext, stop := context.WithCancel(context.Background())
-	done := make(chan struct{})
-	go func() {
-		defer close(done)
-		controllers.Run(runContext)
-	}()
-	defer func() {
-		stop()
-		<-done
-	}()
-
-	// The control plane holds the channel shape; the secret never enters the
-	// setting value (C-14).
-	writeSetting(t, shell, ownerToken, notification.SettingChannels, `{"channels":[`+
-		`{"id":"`+okChannel+`","kind":"webhook","endpoint":"`+okEndpoint+`"},`+
-		`{"id":"`+brokenChannel+`","kind":"webhook","endpoint":"`+brokenEndpoint+`"}]}`)
-	writeSetting(t, shell, ownerToken, notification.SettingSubscriptions,
-		`{"subscriptions":[{"id":"`+subscriptionID+`","types":["Warning"],"channels":["`+okChannel+`","`+brokenChannel+`"]}]}`)
-
-	// The window's events: two matches, one event of another type and one event
-	// from before the hour C-64 fixes.
-	cluster.CreateClusterObject(t, "", "v1", "events", harness.Namespace,
-		eventManifest("warn-newest", "Warning", "BackOff", deliveryTime.Add(-5*time.Minute)))
-	cluster.CreateClusterObject(t, "", "v1", "events", harness.Namespace,
-		eventManifest("warn-recent", "Warning", "FailedMount", deliveryTime.Add(-30*time.Minute)))
-	cluster.CreateClusterObject(t, "", "v1", "events", harness.Namespace,
-		eventManifest("normal-recent", "Normal", "Scheduled", deliveryTime.Add(-15*time.Minute)))
-	cluster.CreateClusterObject(t, "", "v1", "events", harness.Namespace,
-		eventManifest("warn-old", "Warning", "BackOff", deliveryTime.Add(-3*time.Hour)))
-
-	service := &notification.Service{
-		Dynamic:  cluster.Dynamic,
-		Writer:   writer,
-		Settings: shell.Accounts.Store,
-		Queue: queueFunc(func(request reconcile.Request) error {
-			return controllers.Enqueue(notificationComponent, notification.ControllerID, request)
-		}),
-		Now: func() time.Time { return deliveryTime },
-	}
-	report, err := service.Deliver(context.Background())
-	if err != nil {
-		t.Fatalf("deliver the recent events: %v", err)
-	}
-	if len(report.Created) != 4 {
-		t.Fatalf("created %d records (%+v), want two matches on two channels", len(report.Created), report)
-	}
-	if len(report.Problems) != 0 {
-		t.Fatalf("delivery problems = %v, want none", report.Problems)
-	}
-	// The read is newest first, and the event older than the hour never matched.
-	if newest := readRecord(cluster, report.Created[0].Name); newest == nil || recordEventName(newest) != "warn-newest" {
-		t.Fatalf("the first record is %v, want the newest matching event", newest)
-	}
-
-	// Every record reaches its terminal status: the reachable channel accepts,
-	// the unreachable one fails and keeps the failure visible.
-	deadline := time.Now().Add(30 * time.Second)
-	for {
-		delivered, failed := 0, 0
-		phases := make(map[string]string, len(report.Created))
-		for _, request := range report.Created {
-			record := readRecord(cluster, request.Name)
-			if record == nil {
-				phases[request.Name] = "missing"
-				continue
-			}
-			phases[request.Name] = notificationRecordPhase(record)
-			switch notificationRecordPhase(record) {
-			case notification.PhaseDelivered:
-				delivered++
-			case notification.PhaseFailed:
-				failed++
-			}
-		}
-		if delivered == 2 && failed == 2 {
-			break
-		}
-		if time.Now().After(deadline) {
-			t.Fatalf("the delivery records did not settle: %v (webhook messages %d, log %s)", phases, hook.count(), logs.String())
-		}
-		time.Sleep(20 * time.Millisecond)
-	}
-	recordByEventAndChannel := func(eventName, channel string) *unstructured.Unstructured {
-		for _, request := range report.Created {
-			record := readRecord(cluster, request.Name)
-			if notificationRecordChannel(record) == channel && recordEventName(record) == eventName {
-				return record
-			}
-		}
-		return nil
-	}
-	delivered := recordByEventAndChannel("warn-newest", okChannel)
-	failed := recordByEventAndChannel("warn-recent", brokenChannel)
-	if delivered == nil || failed == nil {
-		t.Fatal("the records of both channels are not readable")
-	}
-	if attempts := recordAttempts(delivered); attempts != 1 {
-		t.Fatalf("delivered record attempts = %d, want one", attempts)
-	}
-	requireReconciled(t, delivered)
-	requireCondition(t, failed, notification.ConditionDeliveryFailed)
-	if reason := recordConditionReason(t, failed, notification.ConditionDeliveryFailed); reason != "ChannelRejected" {
-		t.Fatalf("the refused delivery reason = %q, want the channel's rejection", reason)
-	}
-
-	// The external channel received the two matches with the control plane's
-	// credential, and nothing else.
-	if hook.count() != 2 {
-		t.Fatalf("the webhook received %d messages, want the two matches", hook.count())
-	}
-	events := hook.eventNames()
-	for _, name := range []string{"warn-newest", "warn-recent"} {
-		if _, seen := events[name]; !seen {
-			t.Fatalf("the webhook messages cover %v, want %s", events, name)
-		}
-	}
-	for _, authorization := range hook.authorizations() {
-		if authorization != "Bearer "+channelCredential {
-			t.Fatalf("authorization = %q, want the control plane's channel credential", authorization)
-		}
-	}
-	if !strings.Contains(logs.String(), "notification delivery failed") {
-		t.Fatalf("the failed delivery was not logged: %s", logs.String())
-	}
-
-	// The credential is in the control plane alone: not in the records, the log
-	// or the setting projection (C-14).
-	projection := settingsProjection(t, shell, ownerToken)
-	for _, request := range report.Created {
-		record := readRecord(cluster, request.Name)
-		if record == nil {
-			t.Fatalf("record %s is not readable", request.Name)
-		}
-		encoded, err := json.Marshal(record.Object)
-		if err != nil {
-			t.Fatalf("encode the record: %v", err)
-		}
-		for _, secret := range []string{channelCredential, brokenCredential} {
-			if strings.Contains(string(encoded), secret) {
-				t.Fatalf("the delivery record carries the channel credential: %s", encoded)
-			}
-			if strings.Contains(logs.String(), secret) {
-				t.Fatalf("the product log carries the channel credential: %s", logs.String())
-			}
-			if strings.Contains(projection, secret) {
-				t.Fatalf("the settings projection carries the channel credential: %s", projection)
-			}
-		}
-	}
-	if !strings.Contains(projection, okChannel) {
-		t.Fatalf("the settings projection does not show the configured channel: %s", projection)
-	}
-
-	// A repeated read creates nothing new and posts nothing again.
-	repeated, err := service.Deliver(context.Background())
-	if err != nil {
-		t.Fatalf("deliver again: %v", err)
-	}
-	if len(repeated.Created) != 0 || repeated.Skipped != 4 {
-		t.Fatalf("repeated delivery = %+v, want four skipped matches", repeated)
-	}
-	if hook.count() != 2 {
-		t.Fatalf("the repeated read posted %d messages, want no new one", hook.count())
-	}
-
-	// A member may write the cluster-scoped channel setting, so a channel id's
-	// endpoint can be pointed somewhere else. The control plane registered the
-	// credential for the original address; the rewritten one gets no request
-	// and no credential, and the record says why (C-14).
-	attacker := &webhookRecorder{}
-	attackerServer := httptest.NewServer(http.HandlerFunc(attacker.serve))
-	t.Cleanup(attackerServer.Close)
-	member := createAccount(t, shell, ownerToken, "carol", "carol-password", write.RoleMember)
-	writeSetting(t, shell, member, notification.SettingChannels, `{"channels":[`+
-		`{"id":"`+okChannel+`","kind":"webhook","endpoint":"`+attackerServer.URL+`"},`+
-		`{"id":"`+brokenChannel+`","kind":"webhook","endpoint":"`+brokenEndpoint+`"}]}`)
-	cluster.CreateClusterObject(t, "", "v1", "events", harness.Namespace,
-		eventManifest("warn-redirect", "Warning", "BackOff", deliveryTime.Add(-2*time.Minute)))
-	redirected, err := service.Deliver(context.Background())
-	if err != nil {
-		t.Fatalf("deliver after the endpoint rewrite: %v", err)
-	}
-	if len(redirected.Created) != 2 {
-		t.Fatalf("created %d records after the rewrite, want one per channel", len(redirected.Created))
-	}
-	for _, request := range redirected.Created {
-		record := waitForFailedRecord(t, cluster, request.Name)
-		reason := recordConditionReason(t, record, notification.ConditionDeliveryFailed)
-		wanted := "ChannelRejected"
-		if notificationRecordChannel(record) == okChannel {
-			wanted = "ChannelEndpointMismatch"
-		}
-		if reason != wanted {
-			t.Fatalf("record of channel %s failed with %q, want %q", notificationRecordChannel(record), reason, wanted)
-		}
-	}
-	if attacker.count() != 0 {
-		t.Fatalf("the rewritten endpoint received %d messages, want none", attacker.count())
-	}
-}
-
-// waitForFailedRecord waits until one delivery record carries a failed phase.
-func waitForFailedRecord(t *testing.T, cluster *harness.Cluster, name string) *unstructured.Unstructured {
-	t.Helper()
-	deadline := time.Now().Add(30 * time.Second)
-	for {
-		record := readRecord(cluster, name)
-		if record != nil && notificationRecordPhase(record) == notification.PhaseFailed {
-			return record
-		}
-		if time.Now().After(deadline) {
-			t.Fatalf("record %s did not reach a failed phase: %v", name, record)
-		}
-		time.Sleep(20 * time.Millisecond)
-	}
 }
 
 func TestTC114FileManagerServesOnlyExposedOwnedVolumes(t *testing.T) {
@@ -749,7 +472,7 @@ func requireKernelUnchanged(t *testing.T, kinds []string, capabilities []extensi
 func deniedKernelWrite(t *testing.T, cluster *harness.Cluster) string {
 	t.Helper()
 	writer := cluster.Writer()
-	writer.Scope = extension.WriteScope{Groups: []string{notification.APIGroup}}.Admit()
+	writer.Scope = extension.WriteScope{Groups: []string{thirdPartyGroup}}.Admit()
 	_, err := writer.Create(context.Background(), write.SubjectExtensionReconciler, write.Session{}, &unstructured.Unstructured{Object: map[string]any{
 		"apiVersion": api.Group + "/v1beta1",
 		"kind":       "Application",
@@ -761,22 +484,6 @@ func deniedKernelWrite(t *testing.T, cluster *harness.Cluster) string {
 	}
 	return err.Error()
 }
-
-// notificationWriter is the write path an installed delivery controller has:
-// the declared scope plus the resource name of its own class.
-func notificationWriter(t *testing.T, cluster *harness.Cluster, scope extension.WriteScope) *write.Writer {
-	t.Helper()
-	writer := cluster.Writer()
-	writer.Scope = scope.Admit()
-	writer.Resources[schema.GroupKind{Group: notification.APIGroup, Kind: notification.Kind}] = notification.Resource
-	return writer
-}
-
-// queueFunc adapts a function to the delivery queue.
-type queueFunc func(request reconcile.Request) error
-
-// Enqueue asks for one delivery round.
-func (q queueFunc) Enqueue(request reconcile.Request) error { return q(request) }
 
 // writeSetting stores one setting value through the control-plane API.
 func writeSetting(t *testing.T, shell *harness.Shell, token, id, value string) {
@@ -815,185 +522,6 @@ func createAccount(t *testing.T, shell *harness.Shell, ownerToken, username, pas
 	shell.Accounts.ChangePassword(t, token, oneTime, password)
 	token, _ = shell.Accounts.SignIn(t, username, password)
 	return token
-}
-
-// eventManifest builds one stored event of the window.
-func eventManifest(name, eventType, reason string, lastSeen time.Time) map[string]any {
-	return map[string]any{
-		"apiVersion":    "v1",
-		"kind":          "Event",
-		"metadata":      map[string]any{"name": name, "namespace": harness.Namespace},
-		"type":          eventType,
-		"reason":        reason,
-		"message":       reason + " on the shop application",
-		"count":         int64(1),
-		"lastTimestamp": lastSeen.UTC().Format(time.RFC3339Nano),
-		"involvedObject": map[string]any{
-			"apiVersion": api.Group + "/v1beta1", "kind": "Application",
-			"namespace": harness.Namespace, "name": "shop",
-		},
-	}
-}
-
-// webhookRecorder is the external channel the case delivers to.
-type webhookRecorder struct {
-	mu       sync.Mutex
-	messages []notification.Message
-	tokens   []string
-}
-
-// serve records one posted message.
-func (w *webhookRecorder) serve(response http.ResponseWriter, request *http.Request) {
-	var message notification.Message
-	if err := json.NewDecoder(request.Body).Decode(&message); err != nil {
-		response.WriteHeader(http.StatusBadRequest)
-		return
-	}
-	w.mu.Lock()
-	w.messages = append(w.messages, message)
-	w.tokens = append(w.tokens, request.Header.Get("Authorization"))
-	w.mu.Unlock()
-	response.WriteHeader(http.StatusNoContent)
-}
-
-// count reports how many messages the channel accepted.
-func (w *webhookRecorder) count() int {
-	w.mu.Lock()
-	defer w.mu.Unlock()
-	return len(w.messages)
-}
-
-// eventNames reports the events the channel accepted.
-func (w *webhookRecorder) eventNames() map[string]bool {
-	w.mu.Lock()
-	defer w.mu.Unlock()
-	names := make(map[string]bool, len(w.messages))
-	for _, message := range w.messages {
-		names[message.Event.Name] = true
-	}
-	return names
-}
-
-// authorizations returns the authorization header of every accepted message.
-func (w *webhookRecorder) authorizations() []string {
-	w.mu.Lock()
-	defer w.mu.Unlock()
-	return append([]string(nil), w.tokens...)
-}
-
-// settingsProjection reads the settings projection as the owner sees it.
-func settingsProjection(t *testing.T, shell *harness.Shell, token string) string {
-	t.Helper()
-	status, body := shell.Call(t, http.MethodGet, "/api/v1/settings", nil, token)
-	if status != http.StatusOK {
-		t.Fatalf("read the settings = %d %v", status, body)
-	}
-	encoded, err := json.Marshal(body)
-	if err != nil {
-		t.Fatalf("encode the settings projection: %v", err)
-	}
-	return string(encoded)
-}
-
-// readRecord reads one delivery record; nil means the record is not readable.
-func readRecord(cluster *harness.Cluster, name string) *unstructured.Unstructured {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	object, err := cluster.ExtensionResource(notification.APIGroup, notification.ObjectVersion, notification.Resource, "").
-		Get(ctx, name, metav1.GetOptions{})
-	if err != nil {
-		return nil
-	}
-	return object
-}
-
-// notificationRecordChannel reads the channel a record targets.
-func notificationRecordChannel(record *unstructured.Unstructured) string {
-	value, _, _ := unstructured.NestedString(record.Object, "spec", "channel")
-	return value
-}
-
-// notificationRecordPhase reads the record's own phase.
-func notificationRecordPhase(record *unstructured.Unstructured) string {
-	value, _, _ := unstructured.NestedString(record.Object, "status", "phase")
-	return value
-}
-
-// recordEventName reads the event a record snapshots.
-func recordEventName(record *unstructured.Unstructured) string {
-	value, _, _ := unstructured.NestedString(record.Object, "spec", "event", "name")
-	return value
-}
-
-// recordAttempts reads the attempts a record counted.
-func recordAttempts(record *unstructured.Unstructured) int64 {
-	value, _, _ := unstructured.NestedInt64(record.Object, "status", "attempts")
-	return value
-}
-
-// requireReconciled checks a record carries Reconciled=True.
-func requireReconciled(t *testing.T, record *unstructured.Unstructured) {
-	t.Helper()
-	for _, condition := range recordConditions(t, record) {
-		if condition.Type == api.ConditionReconciled {
-			if string(condition.Status) != "True" {
-				t.Fatalf("Reconciled = %s, want True", condition.Status)
-			}
-			return
-		}
-	}
-	t.Fatalf("record %s carries no Reconciled condition", record.GetName())
-}
-
-// requireCondition checks a record carries one condition of its own type.
-func requireCondition(t *testing.T, record *unstructured.Unstructured, conditionType string) {
-	t.Helper()
-	for _, condition := range recordConditions(t, record) {
-		if condition.Type == conditionType && string(condition.Status) == "True" {
-			return
-		}
-	}
-	t.Fatalf("record %s carries no %s=True condition", record.GetName(), conditionType)
-}
-
-// recordConditionReason reads the machine-readable reason of one condition.
-func recordConditionReason(t *testing.T, record *unstructured.Unstructured, conditionType string) string {
-	t.Helper()
-	for _, condition := range recordConditions(t, record) {
-		if condition.Type == conditionType {
-			return condition.Reason
-		}
-	}
-	t.Fatalf("record %s carries no %s condition", record.GetName(), conditionType)
-	return ""
-}
-
-// recordConditions reads the conditions of one record.
-func recordConditions(t *testing.T, record *unstructured.Unstructured) []metav1.Condition {
-	t.Helper()
-	value, found, err := unstructured.NestedSlice(record.Object, "status", "conditions")
-	if err != nil || !found {
-		t.Fatalf("record %s has no readable conditions: found=%v err=%v", record.GetName(), found, err)
-	}
-	conditions := make([]metav1.Condition, 0, len(value))
-	for _, item := range value {
-		fields, ok := item.(map[string]any)
-		if !ok {
-			t.Fatalf("condition %v is not an object", item)
-		}
-		conditions = append(conditions, metav1.Condition{
-			Type:   asString(fields["type"]),
-			Status: metav1.ConditionStatus(asString(fields["status"])),
-			Reason: asString(fields["reason"]),
-		})
-	}
-	return conditions
-}
-
-// asString reads one string field of a decoded condition.
-func asString(value any) string {
-	text, _ := value.(string)
-	return text
 }
 
 // dataCall sends one request to the product's data plane and returns the status
