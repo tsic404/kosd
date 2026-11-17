@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"strconv"
 	"strings"
 	"sync"
@@ -12,6 +13,8 @@ import (
 	"unicode"
 	"unicode/utf8"
 
+	"github.com/tsic404/kosd/api"
+	"github.com/tsic404/kosd/pkg/apptoken"
 	"github.com/tsic404/kosd/pkg/controlplane"
 	"github.com/tsic404/kosd/pkg/write"
 )
@@ -164,6 +167,10 @@ type Config struct {
 	// Auditor records every account and preference write (C-14); nil records
 	// nothing.
 	Auditor controlplane.Auditor
+	// AppTokens ends the tokens an account holds when its sessions are taken
+	// away, so a sign-out and a disabled or removed account cannot leave a
+	// window's token usable (KOSD-C-75).
+	AppTokens *AppTokens
 }
 
 // Service is the account and session layer of the control plane (C-63).
@@ -175,6 +182,7 @@ type Service struct {
 	preferences PreferenceSchemas
 	auditor     controlplane.Auditor
 	cache       *sessionCache
+	appTokens   *AppTokens
 }
 
 // New builds the service over a store.
@@ -186,6 +194,7 @@ func New(store *Store, config Config) *Service {
 		owned:       config.Owned,
 		preferences: config.Preferences,
 		auditor:     config.Auditor,
+		appTokens:   config.AppTokens,
 		cache:       newSessionCache(),
 	}
 	if service.now == nil {
@@ -331,14 +340,75 @@ func (s *Service) Authenticate(ctx context.Context, token string) (Session, erro
 	return session, nil
 }
 
+// roleOf reads one account's current role for an application token (KOSD-C-85).
+// A missing or disabled account holds no role, so the policy refuses the read;
+// a database failure is service unavailable rather than a refusal (KOSD-C-86).
+func (s *Service) roleOf(ctx context.Context, username string) (write.Role, error) {
+	user, err := s.store.UserByName(ctx, username)
+	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			return "", fmt.Errorf("%w: the account of the application token is gone", ErrPermissionDenied)
+		}
+		s.log.Error("control-plane database operation failed", "operation", "read application token account", "error", err)
+		return "", fmt.Errorf("%w: %v", ErrServiceUnavailable, err)
+	}
+	if user.Disabled {
+		return "", fmt.Errorf("%w: the account of the application token is disabled", ErrPermissionDenied)
+	}
+	return user.Role, nil
+}
+
+// recordAppAccess appends one application-token access to the audit trail
+// (KOSD-C-85): the record names the account and the application, so a read is
+// attributable even though no session backs it.
+func (s *Service) recordAppAccess(ctx context.Context, binding apptoken.Binding, verb string, status int) {
+	if s.auditor == nil {
+		return
+	}
+	result := controlplane.ResultAccepted
+	if status < http.StatusOK || status >= http.StatusMultipleChoices {
+		result = controlplane.ResultRejected
+	}
+	_ = s.auditor.Record(ctx, controlplane.AuditRecord{
+		Actor:      binding.Account,
+		Object:     controlplane.ObjectRef{Group: api.Group, Kind: "App", Name: binding.AppID},
+		Verb:       verb,
+		Result:     result,
+		Source:     controlplane.SourceAPI,
+		Extension:  binding.Extension,
+		OccurredAt: s.now(),
+	})
+}
+
 // Logout revokes one session.
 func (s *Service) Logout(ctx context.Context, token string) error {
 	hash := sessionTokenHash(token)
+	// The account is read before the session is deleted, so the sign-out ends
+	// the tokens the account holds with it (KOSD-C-75).
+	account := ""
+	stored, err := s.store.Session(ctx, hash)
+	switch {
+	case err == nil:
+		account = stored.Username
+	case errors.Is(err, ErrNotFound):
+		// No such session: the logout still clears the session it names.
+	case err != nil:
+		return s.storeFailure("read session", err)
+	}
 	if err := s.store.DeleteSession(ctx, hash); err != nil {
 		return s.storeFailure("delete session", err)
 	}
 	s.cache.remove(hash)
-	return nil
+	return s.revokeAccountTokens(ctx, account)
+}
+
+// revokeAccountTokens ends every window token an account holds. A service that
+// does not keep tokens, as the session-only surfaces do, has nothing to revoke.
+func (s *Service) revokeAccountTokens(ctx context.Context, account string) error {
+	if s.appTokens == nil || account == "" {
+		return nil
+	}
+	return s.appTokens.RevokeAccount(ctx, account)
 }
 
 // ChangePassword replaces the account's password, revokes every other session
@@ -479,6 +549,9 @@ func (s *Service) UpdateAccount(ctx context.Context, actor Session, username str
 			return Account{}, s.storeFailure("revoke account sessions", err)
 		}
 		s.cache.removeUser(username)
+		if err := s.revokeAccountTokens(ctx, username); err != nil {
+			return Account{}, s.storeFailure("revoke account tokens", err)
+		}
 	}
 	return accountFromUser(user), nil
 }
@@ -519,7 +592,7 @@ func (s *Service) DeleteAccount(ctx context.Context, actor Session, username str
 		}
 	}
 	s.cache.removeUser(username)
-	return nil
+	return s.revokeAccountTokens(ctx, username)
 }
 
 // BootstrapOwner creates the first Owner when the database holds none and

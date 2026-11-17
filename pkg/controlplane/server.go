@@ -61,6 +61,15 @@ type Request struct {
 	// Current is the stored object when the caller holds it; nil when it does
 	// not exist or was not read.
 	Current map[string]any
+	// Filter marks a per-object visibility check a collection read runs while it
+	// walks its items: the caller drops the object instead of failing the whole
+	// read. A single read leaves it false, so a refusal is answered as one.
+	Filter bool
+	// Admit asks a collection-level question instead of judging one object: may
+	// this identity read the surface at all? It names no object, so an identity
+	// the surface does not admit fails the read before any item is walked and
+	// an empty collection can never stand in for a refusal (KOSD-C-86).
+	Admit bool
 }
 
 // Grant is what a permitted request may do beyond running (C-59, C-60).
@@ -79,6 +88,17 @@ type Grant struct {
 // ErrHidden tells the read path that a session may not see an object (C-59):
 // a list drops it and a single read answers as if it were absent.
 var ErrHidden = errors.New("controlplane: object is hidden from this session")
+
+// ErrUnavailable tells the read path that the authorization seam cannot answer
+// for this identity right now. The request fails as service unavailable rather
+// than being let through or judged as a refusal (KOSD-C-86).
+var ErrUnavailable = errors.New("controlplane: the authorizer cannot judge this identity")
+
+// ErrUnadmitted tells the read path that the identity itself is not admitted to
+// the surface it called: a missing or mismatched origin, or an application its
+// extension no longer declares. Every request from that identity fails the same
+// way, so this is a refusal rather than a subject the caller may not see.
+var ErrUnadmitted = errors.New("controlplane: the identity is not admitted to this surface")
 
 // Authorizer decides whether a request may run. C-59 owns the rule and this API
 // only carries its outcome, so a kernel write and an extension page action get
@@ -930,6 +950,16 @@ func (s *Server) decide(ctx context.Context, verb Verb, ref ObjectRef, object, c
 	if errors.Is(err, ErrHidden) {
 		return grant, notFound("对象 " + ref.String() + " 不存在").about(ref)
 	}
+	if errors.Is(err, ErrUnavailable) {
+		return grant, (&Error{
+			Code:               CodeServiceUnavailable,
+			Message:            "无法确定该身份的有效性或授权",
+			Stage:              StageAuthorize,
+			Retryable:          true,
+			RequiresUserAction: false,
+			SideEffects:        SideEffectsNone,
+		}).about(ref)
+	}
 	s.log.Info("request refused", "verb", string(verb), "object", ref.String(), "reason", err)
 	return grant, (&Error{
 		Code:               CodePermissionDenied,
@@ -949,6 +979,37 @@ func (s *Server) authorize(ctx context.Context, verb Verb, ref ObjectRef, object
 		s.audit(ctx, s.actorOfGrant(ctx, grant), grant.Extension, ref, string(verb), ResultRejected)
 	}
 	return grant, failure
+}
+
+// admit answers the collection-level question a read with no named object asks:
+// may this identity call the surface at all (KOSD-C-86)? A refusal fails the
+// read before any item is walked, so an empty collection cannot stand in for it.
+func (s *Server) admit(ctx context.Context, verb Verb, ref ObjectRef) (Grant, *Error) {
+	grant, err := s.authorizer.Decide(ctx, Request{Verb: verb, Ref: ref, Admit: true})
+	switch {
+	case err == nil:
+		return grant, nil
+	case errors.Is(err, ErrUnavailable):
+		return grant, (&Error{
+			Code:               CodeServiceUnavailable,
+			Message:            "无法确定该身份的有效性或授权",
+			Stage:              StageAuthorize,
+			Retryable:          true,
+			RequiresUserAction: false,
+			SideEffects:        SideEffectsNone,
+		}).about(ref)
+	default:
+		if !errors.Is(err, ErrUnadmitted) {
+			s.log.Info("collection read refused", "verb", string(verb), "reason", err)
+		}
+		return grant, (&Error{
+			Code:               CodePermissionDenied,
+			Message:            "当前身份不能读取该集合",
+			Stage:              StageAuthorize,
+			RequiresUserAction: true,
+			SideEffects:        SideEffectsNone,
+		}).about(ref)
+	}
 }
 
 // changesRows reports whether a refused verb leaves an audit record: only a
@@ -972,12 +1033,21 @@ func (s *Server) visible(ctx context.Context, ref ObjectRef, object map[string]a
 // visibleWithVerb is visible for one named read verb, so a read that carries
 // its own visibility rule (C-64's event rule) is judged by the same seam.
 func (s *Server) visibleWithVerb(ctx context.Context, verb Verb, ref ObjectRef, object map[string]any) (bool, *Error) {
-	_, err := s.authorizer.Decide(ctx, Request{Verb: verb, Ref: ref, Object: object})
+	_, err := s.authorizer.Decide(ctx, Request{Verb: verb, Ref: ref, Object: object, Filter: true})
 	switch {
 	case err == nil:
 		return true, nil
 	case errors.Is(err, ErrHidden):
 		return false, nil
+	case errors.Is(err, ErrUnavailable):
+		return false, (&Error{
+			Code:               CodeServiceUnavailable,
+			Message:            "无法确定该身份的有效性或授权",
+			Stage:              StageAuthorize,
+			Retryable:          true,
+			RequiresUserAction: false,
+			SideEffects:        SideEffectsNone,
+		}).about(ref)
 	default:
 		s.log.Info("read refused", "object", ref.String(), "reason", err)
 		return false, (&Error{
