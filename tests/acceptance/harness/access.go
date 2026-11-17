@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/tsic404/kosd/pkg/access"
+	"github.com/tsic404/kosd/pkg/apptoken"
 	"github.com/tsic404/kosd/pkg/controlplane"
 	"github.com/tsic404/kosd/pkg/identity"
 	"github.com/tsic404/kosd/pkg/write"
@@ -38,6 +39,14 @@ type Access struct {
 // nil means no extension class is declared. configure may change the domain API
 // configuration before it starts.
 func (c *Cluster) StartAccess(t *testing.T, extensions access.ExtensionRoles, configure func(*controlplane.Config)) *Access {
+	t.Helper()
+	return c.StartAccessWithAppTokens(t, extensions, nil, configure)
+}
+
+// StartAccessWithAppTokens boots the same system with the application token
+// verifier a window host supplies (KOSD-C-86). A nil verifier keeps the
+// surface session-only.
+func (c *Cluster) StartAccessWithAppTokens(t *testing.T, extensions access.ExtensionRoles, tokens apptoken.Verifier, configure func(*controlplane.Config)) *Access {
 	t.Helper()
 	clock := NewClock(time.Date(2026, 3, 1, 12, 0, 0, 0, time.UTC))
 	databasePath := filepath.Join(t.TempDir(), "kos.db")
@@ -67,7 +76,7 @@ func (c *Cluster) StartAccess(t *testing.T, extensions access.ExtensionRoles, co
 		Owned:   identity.ClusterOwnedObjects{Dynamic: c.Dynamic},
 		Auditor: identity.AuditTrail{Store: store},
 	})
-	api := identity.NewAPI(service)
+	api := identity.NewAPIWithAppTokens(service, tokens)
 	httpServer := httptest.NewServer(api.Handler(server.Handler()))
 	t.Cleanup(func() {
 		httpServer.Close()
