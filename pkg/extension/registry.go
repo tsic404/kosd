@@ -2,8 +2,11 @@ package extension
 
 import (
 	"fmt"
+	"net/url"
 	"sort"
 
+	"github.com/tsic404/kosd/pkg/access"
+	"github.com/tsic404/kosd/pkg/apptoken"
 	"github.com/tsic404/kosd/pkg/controlplane"
 	"github.com/tsic404/kosd/pkg/write"
 )
@@ -29,6 +32,12 @@ type Registry struct {
 	preferenceKeys map[string][]string
 	declaredBy     map[GroupKind]string
 	writers        map[GroupKind][]write.Role
+	// reads maps an extension identifier to the read permissions it declares
+	// (KOSD-C-85).
+	reads map[string][]access.DeclaredRead
+	// appOrigins maps an extension identifier and application to the entry
+	// origin the application declares (KOSD-C-87).
+	appOrigins map[string]map[string]string
 }
 
 // InstalledApp is one window application an active component declares, with the
@@ -119,6 +128,33 @@ func (r *Registry) ObjectWriters(group, kind string) ([]write.Role, bool) {
 		return nil, false
 	}
 	return append([]write.Role(nil), writers...), true
+}
+
+// ReadScopes returns the read permissions one extension currently declares
+// (KOSD-C-85). An identifier that declares none reads nothing.
+func (r *Registry) ReadScopes(identifier string) []access.DeclaredRead {
+	if r == nil {
+		return nil
+	}
+	reads := r.reads[identifier]
+	out := make([]access.DeclaredRead, 0, len(reads))
+	for _, read := range reads {
+		out = append(out, access.DeclaredRead{
+			Grants:       append([]apptoken.Grant(nil), read.Grants...),
+			RequiredRole: read.RequiredRole,
+		})
+	}
+	return out
+}
+
+// AppOrigin returns the entry origin one installed application declares
+// (KOSD-C-87). An uninstalled application has none.
+func (r *Registry) AppOrigin(identifier, appID string) (string, bool) {
+	if r == nil {
+		return "", false
+	}
+	origin, ok := r.appOrigins[identifier][appID]
+	return origin, ok
 }
 
 // ObjectClass resolves one served extension class (C-19).
@@ -301,6 +337,8 @@ func buildRegistry(components []activated) (*Registry, map[string]Contributions,
 		preferenceKeys: map[string][]string{},
 		declaredBy:     map[GroupKind]string{},
 		writers:        map[GroupKind][]write.Role{},
+		reads:          map[string][]access.DeclaredRead{},
+		appOrigins:     map[string]map[string]string{},
 	}
 	conflicts := map[string][]ClassProblem{}
 	effective := make(map[string]Contributions, len(components))
@@ -407,8 +445,53 @@ func buildRegistry(components []activated) (*Registry, map[string]Contributions,
 		registry.preferences = append(registry.preferences, entry.Preferences...)
 		registry.discovery = append(registry.discovery, entry.DiscoveryAdapters...)
 		registry.diagnostics = append(registry.diagnostics, entry.DiagnosticAdapters...)
+		registry.reads[component.loaded.Identifier] = declaredReads(component.loaded.Permissions)
+		for _, app := range entry.Apps {
+			origin := entryOrigin(app.Entry)
+			if origin == "" {
+				continue
+			}
+			if registry.appOrigins[component.loaded.Identifier] == nil {
+				registry.appOrigins[component.loaded.Identifier] = map[string]string{}
+			}
+			registry.appOrigins[component.loaded.Identifier][app.ID] = origin
+		}
 	}
 	return registry, effective, conflicts
+}
+
+// declaredReads renders the read permissions of one declaration as the scopes
+// the control plane enforces for application tokens (KOSD-C-85).
+func declaredReads(permissions []Permission) []access.DeclaredRead {
+	reads := make([]access.DeclaredRead, 0, len(permissions))
+	for _, permission := range permissions {
+		grants := make([]apptoken.Grant, 0, len(permission.ReadScope.Groups)+len(permission.ReadScope.Kinds))
+		for _, group := range permission.ReadScope.Groups {
+			grants = append(grants, apptoken.Grant{Group: group})
+		}
+		for _, kind := range permission.ReadScope.Kinds {
+			grants = append(grants, apptoken.Grant{Group: kind.Group, Kind: kind.Kind})
+		}
+		if len(grants) == 0 {
+			continue
+		}
+		reads = append(reads, access.DeclaredRead{
+			Grants:       grants,
+			RequiredRole: write.Role(permission.RequiredRole),
+		})
+	}
+	return reads
+}
+
+// entryOrigin reduces an application entry address to the origin a browser
+// request must carry (KOSD-C-87). An address without a usable origin declares
+// none.
+func entryOrigin(entry string) string {
+	parsed, err := url.Parse(entry)
+	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
+		return ""
+	}
+	return parsed.Scheme + "://" + parsed.Host
 }
 
 // recordConflict appends one item to a component's class problem.

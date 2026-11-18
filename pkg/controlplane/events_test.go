@@ -17,8 +17,10 @@ import (
 // eventAuthorizer allows every request, remembers what it judged and hides the
 // subjects a case names.
 type eventAuthorizer struct {
-	hidden   map[ObjectRef]bool
-	requests []Request
+	hidden      map[ObjectRef]bool
+	requests    []Request
+	unadmitted  bool
+	unavailable bool
 }
 
 // eventTrail collects the audit records the route writes.
@@ -33,6 +35,15 @@ func (t *eventTrail) Record(_ context.Context, record AuditRecord) error {
 // Decide implements Authorizer.
 func (a *eventAuthorizer) Decide(_ context.Context, request Request) (Grant, error) {
 	a.requests = append(a.requests, request)
+	if request.Admit {
+		if a.unadmitted {
+			return Grant{}, ErrUnadmitted
+		}
+		if a.unavailable {
+			return Grant{}, ErrUnavailable
+		}
+		return Grant{}, nil
+	}
 	if a.hidden[request.Ref] {
 		return Grant{}, ErrHidden
 	}
@@ -396,6 +407,80 @@ func TestEventsRejectHalfAnObjectFilter(t *testing.T) {
 	errorBody, _ := body["error"].(map[string]any)
 	if errorBody["code"] != CodeInvalidField {
 		t.Fatalf("code = %v, want %s", errorBody["code"], CodeInvalidField)
+	}
+}
+
+// TestUnfilteredEventReadKeepsTheIdentityFailuresApart pins KOSD-C-86's failure
+// classes on a read that names no subject: an identity the surface refuses and
+// one the rule cannot judge both fail the read, and neither arrives as a
+// successful window with no events.
+func TestUnfilteredEventReadKeepsTheIdentityFailuresApart(t *testing.T) {
+	world := eventWorld(storedEvent("shop-recent", "Application", "default", "shop", fixedReadTime.Add(-5*time.Minute)))
+	cases := []struct {
+		name    string
+		subject *eventAuthorizer
+		status  int
+		code    string
+	}{
+		{
+			name:    "an identity outside the declared origin is refused",
+			subject: &eventAuthorizer{unadmitted: true},
+			status:  http.StatusForbidden,
+			code:    CodePermissionDenied,
+		},
+		{
+			name:    "an identity the rule cannot judge answers unavailable",
+			subject: &eventAuthorizer{unavailable: true},
+			status:  http.StatusServiceUnavailable,
+			code:    CodeServiceUnavailable,
+		},
+	}
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			server := eventsServer(t, sourceWorld(world), testCase.subject)
+			status, body := readEvents(t, server, "/api/v1/events?namespace=default")
+			if status != testCase.status {
+				t.Fatalf("unfiltered read = %d %v, want %d", status, body, testCase.status)
+			}
+			errorBody, _ := body["error"].(map[string]any)
+			if errorBody["code"] != testCase.code {
+				t.Fatalf("code = %v, want %s", errorBody["code"], testCase.code)
+			}
+			if events, ok := body["events"]; ok {
+				t.Fatalf("a failed read answered with events: %v", events)
+			}
+		})
+	}
+}
+
+// TestUnfilteredEventReadAdmitsTheIdentityOnce pins that the collection-level
+// question is asked before any item is walked, so a per-subject rule cannot turn
+// the same identity failure into a partly filtered window.
+func TestUnfilteredEventReadAdmitsTheIdentityOnce(t *testing.T) {
+	shopRef := ObjectRef{Group: "kos.tsic.top", Kind: "Application", Namespace: "default", Name: "shop"}
+	authorizer := &eventAuthorizer{hidden: map[ObjectRef]bool{shopRef: true}}
+	world := eventWorld(
+		storedEvent("shop-recent", "Application", "default", "shop", fixedReadTime.Add(-5*time.Minute)),
+		storedEvent("blog-recent", "Application", "default", "blog", fixedReadTime.Add(-10*time.Minute)),
+	)
+	server := eventsServer(t, sourceWorld(world), authorizer)
+
+	status, body := readEvents(t, server, "/api/v1/events?namespace=default")
+	if status != http.StatusOK {
+		t.Fatalf("read events = %d %v, want 200", status, body)
+	}
+	admitted := 0
+	for _, request := range authorizer.requests {
+		if request.Admit {
+			admitted++
+		}
+	}
+	if admitted != 1 {
+		t.Fatalf("collection questions = %d, want one", admitted)
+	}
+	names := eventNames(t, body)
+	if len(names) != 1 || names[0] != "blog-recent" {
+		t.Fatalf("events = %v, want only the subject the session may see", names)
 	}
 }
 

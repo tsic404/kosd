@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"strconv"
 	"strings"
 	"sync"
@@ -12,6 +13,8 @@ import (
 	"unicode"
 	"unicode/utf8"
 
+	"github.com/tsic404/kosd/api"
+	"github.com/tsic404/kosd/pkg/apptoken"
 	"github.com/tsic404/kosd/pkg/controlplane"
 	"github.com/tsic404/kosd/pkg/write"
 )
@@ -324,6 +327,46 @@ func (s *Service) Authenticate(ctx context.Context, token string) (Session, erro
 	}
 	s.cache.put(hash, session)
 	return session, nil
+}
+
+// roleOf reads one account's current role for an application token (KOSD-C-85).
+// A missing or disabled account holds no role, so the policy refuses the read;
+// a database failure is service unavailable rather than a refusal (KOSD-C-86).
+func (s *Service) roleOf(ctx context.Context, username string) (write.Role, error) {
+	user, err := s.store.UserByName(ctx, username)
+	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			return "", fmt.Errorf("%w: the account of the application token is gone", ErrPermissionDenied)
+		}
+		s.log.Error("control-plane database operation failed", "operation", "read application token account", "error", err)
+		return "", fmt.Errorf("%w: %v", ErrServiceUnavailable, err)
+	}
+	if user.Disabled {
+		return "", fmt.Errorf("%w: the account of the application token is disabled", ErrPermissionDenied)
+	}
+	return user.Role, nil
+}
+
+// recordAppAccess appends one application-token access to the audit trail
+// (KOSD-C-85): the record names the account and the application, so a read is
+// attributable even though no session backs it.
+func (s *Service) recordAppAccess(ctx context.Context, binding apptoken.Binding, verb string, status int) {
+	if s.auditor == nil {
+		return
+	}
+	result := controlplane.ResultAccepted
+	if status < http.StatusOK || status >= http.StatusMultipleChoices {
+		result = controlplane.ResultRejected
+	}
+	_ = s.auditor.Record(ctx, controlplane.AuditRecord{
+		Actor:      binding.Account,
+		Object:     controlplane.ObjectRef{Group: api.Group, Kind: "App", Name: binding.AppID},
+		Verb:       verb,
+		Result:     result,
+		Source:     controlplane.SourceAPI,
+		Extension:  binding.Extension,
+		OccurredAt: s.now(),
+	})
 }
 
 // Logout revokes one session.
