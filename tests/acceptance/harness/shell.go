@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/tsic404/kosd/pkg/apps"
-	"github.com/tsic404/kosd/pkg/appstore"
 	"github.com/tsic404/kosd/pkg/catalogue"
 	"github.com/tsic404/kosd/pkg/controlplane"
 	"github.com/tsic404/kosd/pkg/extension"
@@ -137,10 +136,11 @@ func (c *Cluster) StartShell(t *testing.T, configure ...func(*pages.Config)) *Sh
 	t.Cleanup(server.Close)
 
 	settingsService := settings.New(registry, surface.Store, settings.Config{Auditor: surface.Trail})
-	pageConfig := pages.Config{
-		Now:      surface.Clock.Now,
-		Readings: appstore.NewReadings(catalogueService, surface.Clock.Now),
-	}
+	// No component is active until a case publishes an install result, so the
+	// shell starts without a product reader: a page declaring a server source
+	// answers capability-missing until the case wires the product that owns it
+	// (C-22, C-53).
+	pageConfig := pages.Config{Now: surface.Clock.Now}
 	for _, apply := range configure {
 		apply(&pageConfig)
 	}

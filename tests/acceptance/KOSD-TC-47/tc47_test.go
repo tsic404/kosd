@@ -12,8 +12,8 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
 	"github.com/tsic404/kosd/api"
+	"github.com/tsic404/kosd/api/v1beta1"
 	"github.com/tsic404/kosd/pkg/app"
-	"github.com/tsic404/kosd/pkg/app/builtin"
 	"github.com/tsic404/kosd/pkg/reconcile"
 	"github.com/tsic404/kosd/tests/acceptance/harness"
 )
@@ -21,21 +21,60 @@ import (
 const (
 	targetNamespace = "apps"
 	applicationName = "web"
+	// definitionName is the definition the case installs from.
+	definitionName = "web"
 	// unknownAnnotation is outside the marker keys and carries no meaning (C-02).
 	unknownAnnotation = "example.test/unrelated"
 )
 
+// definitionTemplate renders the Deployment and Service the case observes.
+const definitionTemplate = `apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Name }}
+  namespace: {{ .Namespace }}
+spec:
+  replicas: {{ .Config.replicas }}
+  selector:
+    matchLabels:
+      app: {{ .Name }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Name }}
+    spec:
+      containers:
+        - name: {{ .Name }}
+          image: example.test/web:1
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Name }}
+  namespace: {{ .Namespace }}
+spec:
+  selector:
+    app: {{ .Name }}
+  ports:
+    - port: 80
+      targetPort: 80
+`
+
+// definition is the package the case installs (KOSD-C-32).
+func definition(t *testing.T) *v1beta1.ApplicationDefinition {
+	t.Helper()
+	return harness.DefinitionContent(t, definitionName, "", definitionTemplate, nil, []v1beta1.ConfigField{
+		{Name: "replicas", Type: app.TypeInteger, Default: new("1"), Minimum: new("1"), Maximum: new("10")},
+	})
+}
+
 func TestTC47UnknownAnnotationChangesNothing(t *testing.T) {
 	cluster := harness.Start(t)
-	definition, err := builtin.Definition("nginx")
-	if err != nil {
-		t.Fatalf("load the nginx definition: %v", err)
-	}
-	cluster.InstallDefinition(t, definition)
+	cluster.InstallDefinition(t, definition(t))
 	cluster.EnsureNamespace(t, targetNamespace)
 	gateway := cluster.StartControlPlane(t, nil)
 	if status, body := gateway.Call(t, "POST", "/api/v1/resources/Application",
-		harness.ApplicationManifest(applicationName, harness.Namespace, "nginx", targetNamespace, nil, nil), nil); status != 202 {
+		harness.ApplicationManifest(applicationName, harness.Namespace, definitionName, targetNamespace, nil, nil), nil); status != 202 {
 		t.Fatalf("create application: status %d, body %v", status, body)
 	}
 	if status, body := gateway.Call(t, "POST", "/api/v1/resources/Volume",

@@ -25,8 +25,6 @@
 | `TC-6/` | `KOSD-TC-6/` | `kosd/03-acceptance.md` | KOSD-TC-6 依赖缺失与失败隔离 |
 | `TC-7/` | `KOSD-TC-7/` | `kosd/03-acceptance.md` | KOSD-TC-7 设置项出现与修改 |
 | `TC-8/` | `KOSD-TC-8/` | `kosd/03-acceptance.md` | KOSD-TC-8 停用后设置项消失 |
-| `TC-9/` | `APPSTORE-TC-9/` | `kos-appstore/03-acceptance.md` | APPSTORE-TC-9 目录来源同步与摘要 |
-| `TC-10/` | `APPSTORE-TC-10/` | `kos-appstore/03-acceptance.md` | APPSTORE-TC-10 来源移除 |
 | `TC-11/` | `KOSD-TC-11/` | `kosd/03-acceptance.md` | KOSD-TC-11 发现不自动接管 |
 | `TC-12/` | `DIAG-TC-12/` | `kos-diagnostics/03-acceptance.md` | DIAG-TC-12 证据链 |
 | `TC-13/` | `DIAG-TC-13/` | `kos-diagnostics/03-acceptance.md` | DIAG-TC-13 适配器不可用 |
@@ -70,8 +68,6 @@
 | `TC-54/` | `KOSD-TC-54/` | `kosd/03-acceptance.md` | KOSD-TC-54 阶段推进与 Pending |
 | `TC-55/` | `KOSD-TC-55/` | `kosd/03-acceptance.md` | KOSD-TC-55 重试预算与 Failed 终止 |
 | `TC-56/` | `KOSD-TC-56/` | `kosd/03-acceptance.md` | KOSD-TC-56 卸载卡死与 orphan |
-| `TC-57/` | `APPSTORE-TC-57/` | `kos-appstore/03-acceptance.md` | APPSTORE-TC-57 缺依赖与越界参数 |
-| `TC-58/` | `APPSTORE-TC-58/` | `kos-appstore/03-acceptance.md` | APPSTORE-TC-58 敏感参数 |
 | `TC-62/` | `SETTINGS-TC-62/` | `kos-settings/03-acceptance.md` | SETTINGS-TC-62 集群与节点设置的项与入口 |
 | `TC-63/` | `KOSD-TC-63/` | `kosd/03-acceptance.md` | KOSD-TC-63 设置写者唯一 |
 | `TC-64/` | `STORAGE-TC-64/` | `kos-storage/03-acceptance.md` | STORAGE-TC-64 purge 令牌 |
@@ -140,3 +136,7 @@
 `TC-59`、`TC-60` 与 `TC-61` 随桌面条目类和窗口管理器迁入实现仓 `tsic404/kos-dashboard` 的
 `tests/acceptance/DASH-TC-59/`、`tests/acceptance/DASH-TC-60/` 与 `tests/acceptance/DASH-TC-61/`；
 本仓不再保留这三个目录。
+
+`TC-9`、`TC-10`、`TC-57` 与 `TC-58` 随应用中心产品面迁入实现仓 `tsic404/kos-appstore` 的
+`tests/acceptance/APPSTORE-TC-9/`、`-TC-10/`、`-TC-57/` 与 `-TC-58/`；kosd 只保留目录来源
+契约与同步，不再保留这四个目录。
