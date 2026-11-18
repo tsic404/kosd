@@ -9,19 +9,50 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/tsic404/kosd/pkg/app/builtin"
+	"github.com/tsic404/kosd/api/v1beta1"
+	"github.com/tsic404/kosd/pkg/app"
 	"github.com/tsic404/kosd/tests/acceptance/harness"
 )
 
 const targetNamespace = "apps"
 
+// definitionName is the definition the case installs from.
+const definitionName = "web"
+
+// definitionTemplate renders one Deployment; the private config boundary the
+// case measures is the same whatever the package renders.
+const definitionTemplate = `apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Name }}
+  namespace: {{ .Namespace }}
+spec:
+  replicas: {{ .Config.replicas }}
+  selector:
+    matchLabels:
+      app: {{ .Name }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Name }}
+    spec:
+      containers:
+        - name: {{ .Name }}
+          image: example.test/web:1
+`
+
+// definition is the package the case installs: one Deployment and the replicas
+// field its config structure declares (KOSD-C-32).
+func definition(t *testing.T) *v1beta1.ApplicationDefinition {
+	t.Helper()
+	return harness.DefinitionContent(t, definitionName, "", definitionTemplate, nil, []v1beta1.ConfigField{
+		{Name: "replicas", Type: app.TypeInteger, Default: new("1"), Minimum: new("1"), Maximum: new("10")},
+	})
+}
+
 func TestTC46PrivateConfigFieldBoundary(t *testing.T) {
 	cluster := harness.Start(t)
-	definition, err := builtin.Definition("nginx")
-	if err != nil {
-		t.Fatalf("load the nginx definition: %v", err)
-	}
-	cluster.InstallDefinition(t, definition)
+	cluster.InstallDefinition(t, definition(t))
 	cluster.EnsureNamespace(t, targetNamespace)
 	gateway := cluster.StartControlPlane(t, nil)
 
@@ -51,7 +82,7 @@ func TestTC46PrivateConfigFieldBoundary(t *testing.T) {
 	}
 	for index, collision := range cases {
 		name := fmt.Sprintf("rejected-%d", index)
-		body := harness.ApplicationManifest(name, harness.Namespace, "nginx", targetNamespace,
+		body := harness.ApplicationManifest(name, harness.Namespace, definitionName, targetNamespace,
 			map[string]any{collision.key: "value"}, nil)
 		status, response := gateway.Call(t, http.MethodPost, "/api/v1/resources/Application", body, nil)
 		if status != http.StatusBadRequest {
@@ -72,7 +103,7 @@ func TestTC46PrivateConfigFieldBoundary(t *testing.T) {
 	// An undeclared config key is refused by the same structure check; the four
 	// write entries must agree on it, not just on the reserved keys.
 	for index, key := range []string{"unknownKey", "unknown_field"} {
-		body := harness.ApplicationManifest(fmt.Sprintf("declared-unknown-%d", index), harness.Namespace, "nginx", targetNamespace,
+		body := harness.ApplicationManifest(fmt.Sprintf("declared-unknown-%d", index), harness.Namespace, definitionName, targetNamespace,
 			map[string]any{key: "value"}, nil)
 		status, response := gateway.Call(t, http.MethodPost, "/api/v1/resources/Application", body, nil)
 		if status != http.StatusBadRequest {
@@ -99,12 +130,12 @@ func TestTC46PrivateConfigFieldBoundary(t *testing.T) {
 	// The boundary is not create-only: an update that adds a reserved key is
 	// refused with the same answer and the stored config stays as it was.
 	if status, body := gateway.Call(t, http.MethodPost, "/api/v1/resources/Application",
-		harness.ApplicationManifest("update-target", harness.Namespace, "nginx", targetNamespace,
+		harness.ApplicationManifest("update-target", harness.Namespace, definitionName, targetNamespace,
 			map[string]any{"replicas": int64(1)}, nil), nil); status != http.StatusAccepted {
 		t.Fatalf("create a legal application: status %d, body %v", status, body)
 	}
 	path := "/api/v1/resources/Application/update-target?namespace=" + harness.Namespace
-	update := harness.ApplicationManifest("update-target", harness.Namespace, "nginx", targetNamespace,
+	update := harness.ApplicationManifest("update-target", harness.Namespace, definitionName, targetNamespace,
 		map[string]any{"replicas": int64(1), "port": "8080"}, nil)
 	precondition := map[string]string{"If-Match": cluster.Get(t, "v1beta1", "Application", "update-target").GetResourceVersion()}
 	status, response := gateway.Call(t, http.MethodPut, path, update, precondition)
@@ -118,7 +149,7 @@ func TestTC46PrivateConfigFieldBoundary(t *testing.T) {
 		t.Errorf("update refusal does not name port and Endpoint: %s", message)
 	}
 
-	unknownUpdate := harness.ApplicationManifest("update-target", harness.Namespace, "nginx", targetNamespace,
+	unknownUpdate := harness.ApplicationManifest("update-target", harness.Namespace, definitionName, targetNamespace,
 		map[string]any{"replicas": int64(1), "unknownKey": "value"}, nil)
 	status, response = gateway.Call(t, http.MethodPut, path, unknownUpdate,
 		map[string]string{"If-Match": cluster.Get(t, "v1beta1", "Application", "update-target").GetResourceVersion()})
@@ -141,7 +172,7 @@ func TestTC46PrivateConfigFieldBoundary(t *testing.T) {
 			"undeclared": {"unknownKey": "value"},
 		} {
 			status, response := gateway.Call(t, http.MethodPost, endpoint, map[string]any{"objects": []any{
-				harness.ApplicationManifest("set-target", harness.Namespace, "nginx", targetNamespace, config, nil),
+				harness.ApplicationManifest("set-target", harness.Namespace, definitionName, targetNamespace, config, nil),
 			}}, nil)
 			if status != http.StatusBadRequest {
 				t.Fatalf("%s with a %s key: status %d, want 400; body %v", endpoint, key, status, response)

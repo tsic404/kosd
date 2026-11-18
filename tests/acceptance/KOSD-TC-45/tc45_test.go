@@ -1,7 +1,7 @@
-// Package kosdtc45 verifies that the translation template is a pure function: each
-// release definition renders the same bytes for the same config, and a config
-// that spells the defaults out renders exactly like the omitted form (KOSD-AC-23,
-// KOSD-TC-45).
+// Package kosdtc45 verifies that the translation template is a pure function:
+// each application package renders the same bytes for the same config, and a
+// config that spells the defaults out renders exactly like the omitted form
+// (KOSD-AC-23, KOSD-TC-45).
 package kosdtc45
 
 import (
@@ -14,18 +14,58 @@ import (
 
 	"github.com/tsic404/kosd/api/v1beta1"
 	"github.com/tsic404/kosd/pkg/app"
-	"github.com/tsic404/kosd/pkg/app/builtin"
 	"github.com/tsic404/kosd/tests/acceptance/harness"
 )
 
+// translation renders every submitted config value into one ConfigMap.
+const translation = `apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Name }}
+  namespace: {{ .Namespace }}
+data:
+{{- range $key, $value := .Config }}
+  {{ $key }}: "{{ $value }}"
+{{- end }}
+`
+
+// fixtures returns the five application packages the case renders. The
+// distribution ships its definitions through the appstore extension, so the
+// kernel's acceptance case carries five packages covering every config type.
+func fixtures(t *testing.T) []*v1beta1.ApplicationDefinition {
+	t.Helper()
+	return []*v1beta1.ApplicationDefinition{
+		harness.DefinitionContent(t, "web", "", translation, nil, []v1beta1.ConfigField{
+			{Name: "replicas", Type: app.TypeInteger, Default: new("2"), Minimum: new("1"), Maximum: new("10")},
+			{Name: "logLevel", Type: app.TypeEnum, Default: new("info"), Enum: []string{"error", "warn", "info"}},
+			{Name: "image", Type: app.TypeString, Default: new("example.test/web:1")},
+		}),
+		harness.DefinitionContent(t, "cache", "", translation, nil, []v1beta1.ConfigField{
+			{Name: "replicas", Type: app.TypeInteger, Default: new("1")},
+			{Name: "memory", Type: app.TypeString, Default: new("256Mi")},
+			{Name: "eviction", Type: app.TypeBoolean, Default: new("true")},
+		}),
+		harness.DefinitionContent(t, "metrics", "", translation, nil, []v1beta1.ConfigField{
+			{Name: "interval", Type: app.TypeEnum, Default: new("30s"), Enum: []string{"10s", "30s", "60s"}},
+			{Name: "threshold", Type: app.TypeNumber, Default: new("0.5")},
+			{Name: "verbose", Type: app.TypeBoolean, Default: new("false")},
+		}),
+		harness.DefinitionContent(t, "queue", "", translation, nil, []v1beta1.ConfigField{
+			{Name: "replicas", Type: app.TypeInteger, Default: new("3")},
+			{Name: "mode", Type: app.TypeEnum, Default: new("fifo"), Enum: []string{"fifo", "lifo"}},
+		}),
+		harness.DefinitionContent(t, "echo", "", translation, nil, []v1beta1.ConfigField{
+			{Name: "greeting", Type: app.TypeString, Default: new("hello")},
+			{Name: "limit", Type: app.TypeNumber, Default: new("1")},
+		}),
+	}
+}
+
 func TestTC45TranslationStability(t *testing.T) {
 	cluster := harness.Start(t)
-	definitions, err := builtin.Definitions()
-	if err != nil {
-		t.Fatalf("load the release definitions: %v", err)
-	}
+	definitions := fixtures(t)
 	if len(definitions) != 5 {
-		t.Fatalf("the distribution ships %d definitions, want 5", len(definitions))
+		t.Fatalf("the case carries %d definitions, want 5", len(definitions))
 	}
 	for _, definition := range definitions {
 		cluster.InstallDefinition(t, definition)

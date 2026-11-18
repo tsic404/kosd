@@ -37,8 +37,6 @@ KOS 是运行在 Kubernetes 上的 homelab 操作系统。「kosd」有两种用
 | `pkg/controlplane/` | 控制面 HTTP 面：资源路由、投影、统一错误包络、计划请求、日志与事件读取 |
 | `pkg/write/` | 写入路径：C-03/C-04 写入者分配表、准入判定、服务端合并提交与 409 冲突 |
 | `pkg/app/` | C-11/C-32/C-33/C-34/C-35 应用域：配置结构、翻译模板、能力比较、生命周期、升级回滚、漂移策略与动作记录 |
-| `pkg/app/builtin/` | 发行版内置的五份应用定义，摘要由内容计算 |
-| `pkg/appstore/` | kos-appstore 第一方功能包：目录来源（发行版应用）与应用中心页（由配置结构生成的安装参数表单、安装与升级入口） |
 | `pkg/identity/` | 账号与会话：本地账号、锁定计数、一次性口令、会话边界与失效、自身数据库与每日导出 |
 | `pkg/adoption/` | 归属动作：接管、释放、放弃与接管前的不可变快照 |
 | `pkg/discovery/` | C-25 发现适配器运行：按声明的类别与范围只读上报，多来源索引 |
@@ -72,7 +70,7 @@ KOS 是运行在 Kubernetes 上的 homelab 操作系统。「kosd」有两种用
 | `tests/acceptance/KOSD-TC-18/` | 父对象调和器不写子对象 spec |
 | `tests/acceptance/KOSD-TC-19/` | 归属标记的载体 |
 | `tests/acceptance/KOSD-TC-24/` | 并发写入与角色写权限 |
-| `tests/acceptance/KOSD-TC-23/` | 内置定义安装到 Ready、十类对象可被发现 |
+| `tests/acceptance/KOSD-TC-23/` | 定义安装到 Ready、十类对象可被发现 |
 | `tests/acceptance/KOSD-TC-45/` | 同一配置的翻译结果一致、等价配置等价 |
 | `tests/acceptance/KOSD-TC-46/` | 私有配置里的卷与入口字段被拒 |
 | `tests/acceptance/KOSD-TC-47/` | 未知注解不改变阶段、健康与下游 |
@@ -114,10 +112,6 @@ KOS 是运行在 Kubernetes 上的 homelab 操作系统。「kosd」有两种用
 | `tests/acceptance/KOSD-TC-6/` | 依赖缺失时无贡献生效；一个控制器失败只影响它管理的对象 |
 | `tests/acceptance/KOSD-TC-7/` | 设置项给出当前值、来源与修改入口，写入后当前值变化 |
 | `tests/acceptance/KOSD-TC-8/` | 停用后设置项消失且接口被拒，重新启用后值保留 |
-| `tests/acceptance/APPSTORE-TC-9/` | 目录条目结构完整，可安装并产生应用与定义；摘要不匹配不可安装 |
-| `tests/acceptance/APPSTORE-TC-10/` | 来源移除后条目消失、应用保留，升级路径标记来源缺失 |
-| `tests/acceptance/APPSTORE-TC-57/` | 缺依赖条目拒绝安装并列出缺失能力；越界配置在安装与升级时被拒并指出字段 |
-| `tests/acceptance/APPSTORE-TC-58/` | 敏感安装参数不出投影、控制面日志与诊断包，投影只显示已设置 |
 | `tests/acceptance/DASH-TC-14/` | 偏好按账号与扩展分域、跨浏览器一致、不进对象投影 |
 | `tests/acceptance/DASH-TC-15/` | 偏好的保留语义：声明保留的仍在，默认删除的为空 |
 | `tests/acceptance/KOSD-TC-106/` | 第三方产品以扩展包加入，对象类只在扩展组，页面带声明来源 |
@@ -296,10 +290,11 @@ KOS 不再写它；放弃写入 `declined`，对象留在 unmanaged，不再被�
   缺失能力逐个列在 `missing`。条目标识跨来源唯一：两个来源声明同一条目标识时，先装载的
   一方保留该标识，后者记为贡献冲突并降级，同步因此不会在轮次间改写同一份集群作用域定义。
   来源移除后条目消失，已安装应用与定义保留，升级路径在目录读取中标为来源缺失。
-- **应用中心**（C-31、C-32）：`pkg/appstore` 是 kos-appstore 第一方功能包，声明一个目录来源
-  （发行版内置的五份应用定义）与一个应用中心页；页面显示目录条目与升级路径，并给出安装
+- **应用中心**（C-31、C-32）：应用中心是 `kos-appstore` 扩展包声明的产品面——一个目录来源
+  （发行版应用定义随该制品分发）与一个应用中心页。kosd 不内置该页面、来源、页面读取或条目
+  数据：组件未安装时页面不存在，卸载后随组件消失；页面显示目录条目与升级路径，并给出安装
   （`POST /api/v1/resources/Application`）与升级（`PUT /api/v1/resources/Application`）入口。
-  安装参数不出现在页面声明里：每个条目带配置结构，页面读取时按结构生成安装表单的字段
+  安装参数不出现在页面声明里：每个条目带配置结构，`pkg/pages` 读取时按结构生成安装表单的字段
   （类型对应的控件、默认值、必填、范围、枚举与敏感标记），字段不硬编码；不可安装的条目
   连同原因与缺失能力一起给出，界面在提交前看到的就是写入路径的同一套判定。敏感参数在
   表单里只带标记、不带值，界面据此渲染只写控件，是否已设置从投影的掩码读出。创建

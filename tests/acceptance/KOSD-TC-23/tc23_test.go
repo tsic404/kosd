@@ -1,7 +1,7 @@
-// Package kosdtc23 verifies the minimal install path of a built-in definition: the
-// write returns acceptance with a reference, the application reaches Ready, its
-// downstream workload exists, and the KOS group serves exactly the ten kernel
-// kinds (KOSD-AC-11, KOSD-TC-23).
+// Package kosdtc23 verifies the minimal install path of an application
+// definition: the write returns acceptance with a reference, the application
+// reaches Ready, its downstream workload exists, and the KOS group serves
+// exactly the ten kernel kinds (KOSD-AC-11, KOSD-TC-23).
 package kosdtc23
 
 import (
@@ -14,8 +14,8 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
 	"github.com/tsic404/kosd/api"
+	"github.com/tsic404/kosd/api/v1beta1"
 	"github.com/tsic404/kosd/pkg/app"
-	"github.com/tsic404/kosd/pkg/app/builtin"
 	"github.com/tsic404/kosd/pkg/markers"
 	"github.com/tsic404/kosd/pkg/reconcile"
 	"github.com/tsic404/kosd/pkg/write"
@@ -27,19 +27,49 @@ const (
 	targetNamespace = "apps"
 	// applicationName is the application the case installs.
 	applicationName = "web"
+	// definitionName is the definition the application installs from.
+	definitionName = "web"
 )
 
-func TestTC23BuiltinDefinitionReachesReady(t *testing.T) {
+// workloadTemplate renders the Deployment the case waits for; the distribution
+// ships its definitions through the appstore extension, so the kernel's
+// acceptance case carries its own package content.
+const workloadTemplate = `apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Name }}
+  namespace: {{ .Namespace }}
+spec:
+  replicas: {{ .Config.replicas }}
+  selector:
+    matchLabels:
+      app: {{ .Name }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Name }}
+    spec:
+      containers:
+        - name: {{ .Name }}
+          image: example.test/web:1
+`
+
+// definition is the package the case installs: one Deployment and the replicas
+// field its config structure declares (KOSD-C-32).
+func definition(t *testing.T) *v1beta1.ApplicationDefinition {
+	t.Helper()
+	return harness.DefinitionContent(t, definitionName, "", workloadTemplate, nil, []v1beta1.ConfigField{
+		{Name: "replicas", Type: app.TypeInteger, Default: new("1"), Minimum: new("1"), Maximum: new("10")},
+	})
+}
+
+func TestTC23DefinitionReachesReady(t *testing.T) {
 	cluster := harness.Start(t)
-	definition, err := builtin.Definition("nginx")
-	if err != nil {
-		t.Fatalf("load the nginx definition: %v", err)
-	}
-	cluster.InstallDefinition(t, definition)
+	cluster.InstallDefinition(t, definition(t))
 	cluster.EnsureNamespace(t, targetNamespace)
 	gateway := cluster.StartControlPlane(t, nil)
 
-	manifest := harness.ApplicationManifest(applicationName, harness.Namespace, "nginx", targetNamespace,
+	manifest := harness.ApplicationManifest(applicationName, harness.Namespace, definitionName, targetNamespace,
 		map[string]any{"replicas": int64(2)}, nil)
 	// The control plane is the creator, so a body without managed-by must still
 	// become attributable; otherwise no later subject could write its status (C-02).
