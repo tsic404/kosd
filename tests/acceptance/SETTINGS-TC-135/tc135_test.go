@@ -14,7 +14,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/tsic404/kosd/pkg/extension"
-	"github.com/tsic404/kosd/pkg/pages"
+	"github.com/tsic404/kosd/pkg/panel"
 	"github.com/tsic404/kosd/pkg/settings/kossettings"
 	"github.com/tsic404/kosd/tests/acceptance/harness"
 )
@@ -46,8 +46,8 @@ func TestTC135ResourceUsageStates(t *testing.T) {
 			{Name: "node-b", CPU: "2", Memory: "1Gi"},
 		},
 	}
-	shell := cluster.StartShell(t, func(config *pages.Config) {
-		config.Readings = pages.Router{kossettings.Identifier: readings}
+	shell := cluster.StartShell(t, func(config *panel.Config) {
+		config.Products = []panel.Product{{Identifier: kossettings.Identifier, Readings: readings}}
 	})
 	readings.Settings = shell.Settings
 	installation := cluster.InstallPackageWith(t, "settings", kossettings.Declaration(), extension.MemoryArtifacts{}, shell.Retention())

@@ -4,6 +4,7 @@ go 1.26.0
 
 require (
 	github.com/prometheus/client_golang v1.24.0
+	github.com/tsic404/kos-diagnostics v0.0.0-20261119100421-a6dfef2c3a62
 	golang.org/x/crypto v0.58.0
 	k8s.io/api v0.37.1
 	k8s.io/apiextensions-apiserver v0.37.1
@@ -51,6 +52,7 @@ require (
 	github.com/prometheus/procfs v0.21.1 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
 	github.com/spf13/pflag v1.0.10 // indirect
+	github.com/tsic404/kos-sdk v0.0.0-20261113175352-db19ac3e7b97 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
 	go.yaml.in/yaml/v2 v2.4.4 // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect

@@ -16,6 +16,7 @@ import (
 	"github.com/tsic404/kosd/pkg/extension"
 	"github.com/tsic404/kosd/pkg/identity"
 	"github.com/tsic404/kosd/pkg/pages"
+	"github.com/tsic404/kosd/pkg/panel"
 	"github.com/tsic404/kosd/pkg/settings"
 	"github.com/tsic404/kosd/pkg/write"
 )
@@ -114,8 +115,8 @@ type Shell struct {
 
 // StartShell serves the composed control plane over the cluster, with no
 // contributions active until a case publishes an install result. configure may
-// wire the page shell's source readers before it starts.
-func (c *Cluster) StartShell(t *testing.T, configure ...func(*pages.Config)) *Shell {
+// add the readers of products this build does not carry before it starts.
+func (c *Cluster) StartShell(t *testing.T, configure ...func(*panel.Config)) *Shell {
 	t.Helper()
 	registry := &RegistrySource{}
 	surface := OpenIdentity(t, nil, func(config *identity.Config) {
@@ -137,14 +138,15 @@ func (c *Cluster) StartShell(t *testing.T, configure ...func(*pages.Config)) *Sh
 
 	settingsService := settings.New(registry, surface.Store, settings.Config{Auditor: surface.Trail})
 	// No component is active until a case publishes an install result, so the
-	// shell starts without a product reader: a page declaring a server source
-	// answers capability-missing until the case wires the product that owns it
-	// (C-22, C-53).
-	pageConfig := pages.Config{Now: surface.Clock.Now}
+	// shell starts without pages; a page declaring a server source answers
+	// capability-missing until the case installs the product that owns it
+	// (C-22, C-53). The panel is assembled by the same entry the production
+	// process calls, so the registered readers are the production ones.
+	panelConfig := panel.Config{Dynamic: c.Dynamic, Now: surface.Clock.Now}
 	for _, apply := range configure {
-		apply(&pageConfig)
+		apply(&panelConfig)
 	}
-	pagesService := pages.New(registry, pageConfig)
+	pagesService := panel.New(registry, panelConfig)
 	appsService := apps.New(registry)
 	settingsHandler := settings.NewAPI(settingsService).Handler()
 	catalogueHandler := catalogue.NewAPI(catalogueService).Handler()

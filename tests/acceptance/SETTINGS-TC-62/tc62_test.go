@@ -19,7 +19,7 @@ import (
 	"github.com/tsic404/kosd/pkg/controlplane"
 	"github.com/tsic404/kosd/pkg/extension"
 	"github.com/tsic404/kosd/pkg/identity"
-	"github.com/tsic404/kosd/pkg/pages"
+	"github.com/tsic404/kosd/pkg/panel"
 	"github.com/tsic404/kosd/pkg/settings/kossettings"
 	"github.com/tsic404/kosd/tests/acceptance/harness"
 )
@@ -46,10 +46,10 @@ func TestTC62ClusterAndNodeSettings(t *testing.T) {
 	cluster.Create(t, applicationOfVolume())
 
 	readings := &kossettings.Readings{Dynamic: cluster.Dynamic}
-	shell := cluster.StartShell(t, func(config *pages.Config) {
+	shell := cluster.StartShell(t, func(config *panel.Config) {
 		// The panel dispatch is the rendering path the browser uses: each item
 		// goes to the product named in its reference (C-22).
-		config.Readings = pages.Router{kossettings.Identifier: readings}
+		config.Products = []panel.Product{{Identifier: kossettings.Identifier, Readings: readings}}
 	})
 	readings.Settings = shell.Settings
 	readings.Accounts = shell.Accounts.Store

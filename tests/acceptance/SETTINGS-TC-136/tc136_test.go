@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/tsic404/kosd/pkg/extension"
-	"github.com/tsic404/kosd/pkg/pages"
+	"github.com/tsic404/kosd/pkg/panel"
 	"github.com/tsic404/kosd/pkg/settings/kossettings"
 	"github.com/tsic404/kosd/tests/acceptance/harness"
 )
@@ -24,8 +24,8 @@ const (
 func TestTC136MaintenanceWindowItem(t *testing.T) {
 	cluster := harness.Start(t)
 	readings := &kossettings.Readings{Dynamic: cluster.Dynamic}
-	shell := cluster.StartShell(t, func(config *pages.Config) {
-		config.Readings = pages.Router{kossettings.Identifier: readings}
+	shell := cluster.StartShell(t, func(config *panel.Config) {
+		config.Products = []panel.Product{{Identifier: kossettings.Identifier, Readings: readings}}
 	})
 	readings.Settings = shell.Settings
 	installation := cluster.InstallPackageWith(t, "settings", kossettings.Declaration(), extension.MemoryArtifacts{}, shell.Retention())

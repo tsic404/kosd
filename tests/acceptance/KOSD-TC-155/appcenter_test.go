@@ -15,6 +15,7 @@ import (
 	"github.com/tsic404/kosd/pkg/extension"
 	"github.com/tsic404/kosd/pkg/identity"
 	"github.com/tsic404/kosd/pkg/pages"
+	"github.com/tsic404/kosd/pkg/panel"
 	"github.com/tsic404/kosd/pkg/write"
 	"github.com/tsic404/kosd/tests/acceptance/harness"
 )
@@ -139,10 +140,10 @@ func startShell(t *testing.T) *harness.Shell {
 	t.Helper()
 	var shell *harness.Shell
 	cluster := harness.Start(t)
-	shell = cluster.StartShell(t, func(config *pages.Config) {
-		config.Readings = pages.Router{appCenterIdentifier: pageReader{
+	shell = cluster.StartShell(t, func(config *panel.Config) {
+		config.Products = []panel.Product{{Identifier: appCenterIdentifier, Readings: pageReader{
 			entries: func() []catalogue.Entry { return shell.Catalogue.Entries() },
-		}}
+		}}}
 	})
 	return shell
 }
