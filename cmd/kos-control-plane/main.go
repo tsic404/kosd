@@ -36,6 +36,7 @@ import (
 	"github.com/tsic404/kosd/pkg/degrade"
 	"github.com/tsic404/kosd/pkg/extension"
 	"github.com/tsic404/kosd/pkg/identity"
+	"github.com/tsic404/kosd/pkg/install"
 	"github.com/tsic404/kosd/pkg/maintenance"
 	"github.com/tsic404/kosd/pkg/pages"
 	"github.com/tsic404/kosd/pkg/panel"
@@ -199,11 +200,13 @@ func run() error {
 		address      string
 		kubeconfig   string
 		databasePath string
+		packagesPath string
 		memoryLimit  int64
 	)
 	flag.StringVar(&address, "address", defaultAddress, "HTTP listen address")
 	flag.StringVar(&kubeconfig, "kubeconfig", "", "path to the kubeconfig; empty uses the in-cluster configuration")
 	flag.StringVar(&databasePath, "database", defaultDatabasePath, "path to the control-plane database")
+	flag.StringVar(&packagesPath, "packages", install.PackageDirectory, "directory extension packages are read from")
 	flag.Int64Var(&memoryLimit, "memory-limit", 0, "degradation threshold in bytes; zero selects the default")
 	flag.Parse()
 
@@ -264,7 +267,7 @@ func run() error {
 	componentInstaller := &extension.Installer{
 		Dynamic:   dynamicClient,
 		Resources: resources,
-		Artifacts: extension.MemoryArtifacts{},
+		Artifacts: extension.DirectoryArtifacts{Root: packagesPath},
 		Status:    kernelWriter,
 	}
 	upgrades := upgrade.New(upgrade.Config{
@@ -328,7 +331,7 @@ func run() error {
 	// request instead of reporting an unmeasured process (KOSD-C-57).
 	protection.Sample(ctx, memoryReader{})
 	go sampleMemory(ctx, protection)
-	go refreshProjection(ctx, dynamicClient, discoveryClient, projection, logger)
+	go refreshProjection(ctx, dynamicClient, discoveryClient, projection, extension.DirectoryArtifacts{Root: packagesPath}, logger)
 	go func() {
 		<-ctx.Done()
 		shutdown, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
@@ -338,7 +341,7 @@ func run() error {
 		}
 	}()
 
-	logger.Info("kos-control-plane started", "address", address, "database", databasePath)
+	logger.Info("kos-control-plane started", "address", address, "database", databasePath, "packages", packagesPath)
 	if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		return err
 	}
@@ -362,12 +365,12 @@ func sampleMemory(ctx context.Context, protection *degrade.Protection) {
 // refreshProjection runs the extension install pass and publishes what it
 // produced. A failed pass keeps the previous projection: an unreadable cluster
 // is a transient fact, not a withdrawal (KOSD-C-56).
-func refreshProjection(ctx context.Context, client dynamic.Interface, discoveryClient discovery.DiscoveryInterface, projection *extensionSource, logger *slog.Logger) {
+func refreshProjection(ctx context.Context, client dynamic.Interface, discoveryClient discovery.DiscoveryInterface, projection *extensionSource, artifacts extension.ArtifactSource, logger *slog.Logger) {
 	resources := resourcesOf(discoveryClient)
 	installer := &extension.Installer{
 		Dynamic:   client,
 		Resources: resources,
-		Artifacts: extension.MemoryArtifacts{},
+		Artifacts: artifacts,
 		Status:    &write.Writer{Dynamic: client, Resources: resources},
 	}
 	ticker := time.NewTicker(extensionInstallInterval)

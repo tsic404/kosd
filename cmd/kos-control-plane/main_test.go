@@ -2,10 +2,12 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"io"
 	"net"
 	"net/http"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
@@ -13,11 +15,15 @@ import (
 	"testing"
 	"time"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 
 	"github.com/tsic404/kosd/pkg/controlplane"
+	"github.com/tsic404/kosd/pkg/extension"
+	"github.com/tsic404/kosd/pkg/identity"
 	"github.com/tsic404/kosd/tests/acceptance/harness"
 )
 
@@ -176,4 +182,263 @@ func writeKubeconfig(t *testing.T, config *rest.Config) string {
 		t.Fatalf("write the kubeconfig: %v", err)
 	}
 	return path
+}
+
+// processPackage is the system application the process test delivers: one page
+// and one window application in the same artifact (KOSD-AC-72).
+func processPackage() extension.Declaration {
+	return extension.Declaration{
+		Identifier:       "kos-taskmanager",
+		Version:          "0.1.0",
+		FrameworkVersion: ">=1.0 <2.0",
+		Contributions: extension.Contributions{
+			Pages: []extension.Page{{
+				ID: "overview", Title: "概览", Location: "panel",
+				ReadOnly: true, ReadOnlyReason: "只读展示",
+				Items: []extension.PageItem{{
+					ID: "nodes-ready", Label: "节点就绪",
+					Source: extension.PageSourceObject, Reference: "kos-taskmanager/nodes-ready",
+				}},
+			}},
+			Apps: []extension.App{{
+				ID: "kos-taskmanager", Name: "运行视图", Version: "0.1.0",
+				Icon: "https://taskmanager.example/icon.svg", Entry: "https://taskmanager.example/",
+				Window: extension.AppWindow{
+					Width: 1200, Height: 800, MinWidth: 960, MinHeight: 640,
+					Resizable: true, Mode: extension.AppWindowSingle, DefaultState: extension.AppStateNormal,
+				},
+				Permissions: []string{},
+			}},
+		},
+	}
+}
+
+// TestProcessInstallsPackagesFromItsDirectory checks the deployed process shape:
+// it reads the package from the directory it was started with, verifies the
+// digest over those bytes, loads the declared page and application, and refuses
+// a package whose digest does not match with a readable reason (KOSD-C-17,
+// KOSD-AC-72).
+func TestProcessInstallsPackagesFromItsDirectory(t *testing.T) {
+	cluster := harness.Start(t)
+	binary := filepath.Join(t.TempDir(), "kos-control-plane")
+	build := exec.Command("go", "build", "-o", binary, ".")
+	if output, err := build.CombinedOutput(); err != nil {
+		t.Fatalf("build the process: %v\n%s", err, output)
+	}
+
+	packages := t.TempDir()
+	content, digest, err := extension.Pack(processPackage(), nil)
+	if err != nil {
+		t.Fatalf("pack the system application: %v", err)
+	}
+	reference := "dist/kos-taskmanager-0.1.0.tar.gz"
+	target := filepath.Join(packages, filepath.FromSlash(reference))
+	if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
+		t.Fatalf("make the package directory: %v", err)
+	}
+	if err := os.WriteFile(target, content, 0o644); err != nil {
+		t.Fatalf("deliver the package: %v", err)
+	}
+
+	database := filepath.Join(t.TempDir(), "kos.db")
+	password := seedFirstOwner(t, database)
+	address := freeAddress(t)
+	command := exec.Command(binary,
+		"-kubeconfig", writeKubeconfig(t, cluster.Config),
+		"-database", database,
+		"-address", address,
+		"-packages", packages,
+	)
+	var output bytes.Buffer
+	command.Stdout = &output
+	command.Stderr = &output
+	if err := command.Start(); err != nil {
+		t.Fatalf("start the process: %v", err)
+	}
+	exited := make(chan error, 1)
+	go func() { exited <- command.Wait() }()
+	t.Cleanup(func() {
+		if command.ProcessState == nil || !command.ProcessState.Exited() {
+			_ = command.Process.Kill()
+			<-exited
+		}
+	})
+	waitForHealth(t, address, &output)
+
+	token := signInOwner(t, address, password)
+	cluster.Create(t, &unstructured.Unstructured{Object: harness.Component(
+		"kos-taskmanager", reference, digest)})
+	cluster.Create(t, &unstructured.Unstructured{Object: harness.Component(
+		"kos-taskmanager-bad", reference, "sha256:"+strings.Repeat("0", 64))})
+
+	installed := waitForPhase(t, cluster, "kos-taskmanager", extension.PhaseReady, 60*time.Second, &output)
+	if condition := conditionOf(t, installed, extension.ConditionPackageVerified); condition.Status != metav1.ConditionTrue {
+		t.Fatalf("PackageVerified = %s, want True", condition.Status)
+	}
+
+	refused := waitForPhase(t, cluster, "kos-taskmanager-bad", extension.PhaseUnavailable, 60*time.Second, &output)
+	condition := conditionOf(t, refused, extension.ConditionPackageVerified)
+	if condition.Reason != extension.ReasonDigestMismatch {
+		t.Fatalf("refused reason = %q, want %q", condition.Reason, extension.ReasonDigestMismatch)
+	}
+	if !strings.Contains(condition.Message, digest) || !strings.Contains(condition.Message, strings.Repeat("0", 64)) {
+		t.Fatalf("refused message = %q, want the carried and the named digest", condition.Message)
+	}
+
+	pages := callWithToken(t, address, http.MethodGet, "/api/v1/pages", token)
+	if !containsItemID(t, pages, "id", "overview") {
+		t.Fatalf("pages = %v, want the package's page", pages)
+	}
+	apps := callWithToken(t, address, http.MethodGet, "/api/v1/apps", token)
+	if !appWithDigest(t, apps, "kos-taskmanager", digest) {
+		t.Fatalf("applications = %v, want the package's window application", apps)
+	}
+}
+
+// seedFirstOwner creates the first Owner in a fresh control-plane database and
+// replaces its one-time password, the state an installation leaves behind.
+func seedFirstOwner(t *testing.T, database string) string {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	store, err := identity.Open(ctx, identity.OpenOptions{Path: database})
+	if err != nil {
+		t.Fatalf("open the identity database: %v", err)
+	}
+	defer func() { _ = store.Close() }()
+	bootstrap, err := identity.New(store, identity.Config{}).BootstrapOwner(ctx, "owner")
+	if err != nil {
+		t.Fatalf("create the first Owner: %v", err)
+	}
+	service := identity.New(store, identity.Config{})
+	login, err := service.Login(ctx, "owner", bootstrap.OneTimePassword)
+	if err != nil {
+		t.Fatalf("sign in with the one-time password: %v", err)
+	}
+	if err := service.ChangePassword(ctx, login.Token, bootstrap.OneTimePassword, "owner-password"); err != nil {
+		t.Fatalf("replace the one-time password: %v", err)
+	}
+	return "owner-password"
+}
+
+// signInOwner returns a session token that may read the control-plane API
+// (C-63).
+func signInOwner(t *testing.T, address, password string) string {
+	t.Helper()
+	status, body := call(t, address, http.MethodPost, "/api/v1/auth/login", jsonBody(t, map[string]any{
+		"username": "owner", "password": password,
+	}))
+	if status != http.StatusOK {
+		t.Fatalf("sign in = %d %v", status, body)
+	}
+	token, _ := body["token"].(string)
+	if token == "" {
+		t.Fatalf("sign in returned no token: %v", body)
+	}
+	return token
+}
+
+// waitForPhase polls one component until it reports the expected phase.
+func waitForPhase(t *testing.T, cluster *harness.Cluster, name, phase string, timeout time.Duration, output *bytes.Buffer) *unstructured.Unstructured {
+	t.Helper()
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		object := cluster.Get(t, "v1beta1", "SystemComponent", name)
+		reported, _, err := unstructured.NestedString(object.Object, "status", "phase")
+		if err != nil {
+			t.Fatalf("read phase of %s: %v", name, err)
+		}
+		if reported == phase {
+			return object
+		}
+		time.Sleep(500 * time.Millisecond)
+	}
+	t.Fatalf("component %s never reached %s\n%s", name, phase, output.String())
+	return nil
+}
+
+// conditionOf returns the condition of one type.
+func conditionOf(t *testing.T, object *unstructured.Unstructured, conditionType string) metav1.Condition {
+	t.Helper()
+	for _, condition := range harness.Conditions(t, object) {
+		if condition.Type == conditionType {
+			return condition
+		}
+	}
+	t.Fatalf("%s carries no %s condition", object.GetName(), conditionType)
+	return metav1.Condition{}
+}
+
+// callWithToken reads one API answer as a signed-in session.
+func callWithToken(t *testing.T, address, method, path, token string) map[string]any {
+	t.Helper()
+	status, body := callWithTokenBody(t, address, method, path, token, "")
+	if status != http.StatusOK {
+		t.Fatalf("%s %s = %d %v", method, path, status, body)
+	}
+	return body
+}
+
+// callWithTokenBody sends one request as a session and decodes the answer.
+func callWithTokenBody(t *testing.T, address, method, path, token, payload string) (int, map[string]any) {
+	t.Helper()
+	var reader io.Reader
+	if payload != "" {
+		reader = strings.NewReader(payload)
+	}
+	request, err := http.NewRequest(method, "http://"+address+path, reader)
+	if err != nil {
+		t.Fatalf("build %s %s: %v", method, path, err)
+	}
+	request.Header.Set("Authorization", "Bearer "+token)
+	if payload != "" {
+		request.Header.Set("Content-Type", "application/json")
+	}
+	response, err := http.DefaultClient.Do(request)
+	if err != nil {
+		t.Fatalf("%s %s: %v", method, path, err)
+	}
+	defer response.Body.Close()
+	decoded := map[string]any{}
+	content, _ := io.ReadAll(response.Body)
+	if len(content) > 0 {
+		if err := json.Unmarshal(content, &decoded); err != nil {
+			t.Fatalf("%s %s answered %q: %v", method, path, content, err)
+		}
+	}
+	return response.StatusCode, decoded
+}
+
+// jsonBody encodes one request body.
+func jsonBody(t *testing.T, value map[string]any) string {
+	t.Helper()
+	encoded, err := json.Marshal(value)
+	if err != nil {
+		t.Fatalf("encode the request body: %v", err)
+	}
+	return string(encoded)
+}
+
+// containsItemID reports whether a list answer carries an item with the value.
+func containsItemID(t *testing.T, body map[string]any, field, value string) bool {
+	t.Helper()
+	for _, item := range harness.Items(t, body) {
+		if harness.String(item, field) == value {
+			return true
+		}
+	}
+	return false
+}
+
+// appWithDigest reports whether the application list carries one application
+// with the given identifier and verified digest.
+func appWithDigest(t *testing.T, body map[string]any, id, digest string) bool {
+	t.Helper()
+	for _, item := range harness.Items(t, body) {
+		manifest, _ := item["manifest"].(map[string]any)
+		if harness.String(manifest, "id") == id && harness.String(item, "digest") == digest {
+			return true
+		}
+	}
+	return false
 }

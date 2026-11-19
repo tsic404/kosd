@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/yaml"
 )
 
@@ -55,6 +56,67 @@ func TestDeployManifestMatchesRenderer(t *testing.T) {
 	if kind, _ := strategy["type"].(string); kind != "Recreate" {
 		t.Fatalf("the shipped Deployment uses the %q strategy, an installation renders Recreate", kind)
 	}
+}
+
+// TestControlPlaneDeploymentCarriesThePackageVolume pins the deployable delivery
+// channel: every install form mounts the host directory an operator drops
+// packages in and tells the process to read it (KOSD-C-17, KOSD-NG-7).
+func TestControlPlaneDeploymentCarriesThePackageVolume(t *testing.T) {
+	plans := map[string]Plan{
+		"existing-cluster": {Mode: ModeExisting, Owner: "owner"},
+		"external-control-plane": {
+			Mode: ModeExternal, Owner: "owner",
+			Managed: ManagedEndpoint{Server: "https://managed.example"},
+		},
+	}
+	for name, plan := range plans {
+		normalized, err := plan.Normalize()
+		if err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		deployment := controlPlaneDeployment(normalized, map[string]any{})
+		containers, _, err := unstructured.NestedSlice(deployment.Object, "spec", "template", "spec", "containers")
+		if err != nil || len(containers) != 1 {
+			t.Fatalf("%s: containers = %v (%v), want one", name, containers, err)
+		}
+		container, _ := containers[0].(map[string]any)
+		if args, _ := container["args"].([]any); len(args) != 2 ||
+			args[0] != "-packages" || args[1] != PackageDirectory {
+			t.Fatalf("%s: args = %v, want -packages %s", name, container["args"], PackageDirectory)
+		}
+		mounts, _ := container["volumeMounts"].([]any)
+		if !hasPackageMount(mounts) {
+			t.Fatalf("%s: volumeMounts = %v, want the package directory read-only", name, mounts)
+		}
+		volumes, _, err := unstructured.NestedSlice(deployment.Object, "spec", "template", "spec", "volumes")
+		if err != nil || !hasPackageVolume(volumes) {
+			t.Fatalf("%s: volumes = %v (%v), want the host package directory", name, volumes, err)
+		}
+	}
+}
+
+// hasPackageMount reports whether one mount carries the package directory
+// read-only.
+func hasPackageMount(mounts []any) bool {
+	for _, raw := range mounts {
+		mount, _ := raw.(map[string]any)
+		if mount["name"] == PackageVolume && mount["mountPath"] == PackageDirectory && mount["readOnly"] == true {
+			return true
+		}
+	}
+	return false
+}
+
+// hasPackageVolume reports whether one volume is the host package directory.
+func hasPackageVolume(volumes []any) bool {
+	for _, raw := range volumes {
+		volume, _ := raw.(map[string]any)
+		hostPath, _ := volume["hostPath"].(map[string]any)
+		if volume["name"] == PackageVolume && hostPath["path"] == PackageDirectory && hostPath["type"] == "DirectoryOrCreate" {
+			return true
+		}
+	}
+	return false
 }
 
 // containerField reads one field of the first container, which is where an

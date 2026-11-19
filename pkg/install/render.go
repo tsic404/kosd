@@ -277,32 +277,49 @@ func clusterRoleBinding(plan Plan, labels map[string]any) *unstructured.Unstruct
 // controlPlaneDeployment renders the single control-plane replica. C-54 and
 // F13 permit no second replica, so the count is not a plan value. The external
 // form mounts the credential to the managed cluster: the secret is written by
-// the install run and never leaves the control-plane cluster (C-14).
+// the install run and never leaves the control-plane cluster (C-14). Every form
+// mounts the package directory, so an operator delivers an extension artifact
+// by dropping it on the host (C-17, KOSD-NG-7).
 func controlPlaneDeployment(plan Plan, labels map[string]any) *unstructured.Unstructured {
 	selector := map[string]any{"app": ControlPlaneName}
+	mounts := []any{map[string]any{
+		"name":      PackageVolume,
+		"mountPath": PackageDirectory,
+		"readOnly":  true,
+	}}
+	volumes := []any{map[string]any{
+		"name": PackageVolume,
+		"hostPath": map[string]any{
+			"path": PackageDirectory,
+			"type": "DirectoryOrCreate",
+		},
+	}}
 	container := map[string]any{
 		"name":  ControlPlaneName,
 		"image": plan.Image,
 		"ports": []any{map[string]any{"containerPort": int64(8080)}},
-	}
-	podSpec := map[string]any{
-		"serviceAccountName": ControlPlaneServiceAccount,
-		"containers":         []any{container},
+		"args":  []any{"-packages", PackageDirectory},
 	}
 	if plan.Mode == ModeExternal {
-		container["volumeMounts"] = []any{map[string]any{
+		mounts = append(mounts, map[string]any{
 			"name":      "managed-credential",
 			"mountPath": "/etc/kos/managed",
 			"readOnly":  true,
-		}}
+		})
 		container["env"] = []any{map[string]any{
 			"name":  "KUBECONFIG",
 			"value": "/etc/kos/managed/" + ManagedCredentialKey,
 		}}
-		podSpec["volumes"] = []any{map[string]any{
+		volumes = append(volumes, map[string]any{
 			"name":   "managed-credential",
 			"secret": map[string]any{"secretName": ManagedCredentialSecret},
-		}}
+		})
+	}
+	container["volumeMounts"] = mounts
+	podSpec := map[string]any{
+		"serviceAccountName": ControlPlaneServiceAccount,
+		"containers":         []any{container},
+		"volumes":            volumes,
 	}
 	return object("apps/v1", "Deployment", ControlPlaneName, plan.Namespace, map[string]any{
 		"metadata": map[string]any{"labels": labels},

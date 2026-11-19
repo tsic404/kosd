@@ -42,6 +42,12 @@ const (
 	// DefaultAddress is where an external-form control plane answers on its own
 	// host; the first-Owner claim is served from there (C-68).
 	DefaultAddress = "http://127.0.0.1:8080"
+	// PackageDirectory is where the control plane reads extension package files
+	// (C-17). An operator delivers a package by dropping the artifact in this
+	// directory; the component's spec.package.reference is its path below it.
+	PackageDirectory = "/var/lib/kosd/packages"
+	// PackageVolume is the workload volume that carries that directory.
+	PackageVolume = "packages"
 )
 
 // Mode is an installation form (C-54).
