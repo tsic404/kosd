@@ -17,7 +17,7 @@ import (
 	"github.com/tsic404/kosd/pkg/app/kostaskmanager"
 	"github.com/tsic404/kosd/pkg/controlplane"
 	"github.com/tsic404/kosd/pkg/extension"
-	"github.com/tsic404/kosd/pkg/pages"
+	"github.com/tsic404/kosd/pkg/panel"
 	"github.com/tsic404/kosd/pkg/volume/kosstorage"
 	"github.com/tsic404/kosd/tests/acceptance/harness"
 )
@@ -60,10 +60,10 @@ func TestTC103ProjectionsOverAnAppliedApplication(t *testing.T) {
 
 	taskmanagerReadings := &kostaskmanager.Readings{Dynamic: cluster.Dynamic}
 	storageReadings := &kosstorage.Readings{Dynamic: cluster.Dynamic}
-	shell := cluster.StartShell(t, func(config *pages.Config) {
-		config.Readings = pages.Router{
-			kostaskmanager.Identifier: taskmanagerReadings,
-			kosstorage.Identifier:     storageReadings,
+	shell := cluster.StartShell(t, func(config *panel.Config) {
+		config.Products = []panel.Product{
+			{Identifier: kostaskmanager.Identifier, Readings: taskmanagerReadings},
+			{Identifier: kosstorage.Identifier, Readings: storageReadings},
 		}
 	})
 	taskmanagerReadings.Now = shell.Accounts.Clock.Now

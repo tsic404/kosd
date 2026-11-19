@@ -521,7 +521,9 @@ make acceptance # 只跑 tests/acceptance，输出用例名
 
 控制面是一个可执行进程与一个镜像，进程入口在 `cmd/kos-control-plane`：它把对象 API、账号与
 会话、设置域、目录来源、页面外壳、窗口应用投影与扩展装载装配成一个进程，并周期性重跑扩展
-装载以刷新贡献投影。
+装载以刷新贡献投影。页面外壳的装配入口是 `pkg/panel`：进程与验收 harness 都调用它，
+所以两者注册的读取器是同一张表；kos-diagnostics 的读取器在这里按产品标识注册，页面本身
+仍只随激活声明出现与消失。
 
 ```bash
 # 镜像：tag 就是 pkg/install 渲染的 DefaultImage，安装拉到的正是这里构建的产物。

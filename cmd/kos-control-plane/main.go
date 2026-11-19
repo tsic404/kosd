@@ -36,6 +36,7 @@ import (
 	"github.com/tsic404/kosd/pkg/extension"
 	"github.com/tsic404/kosd/pkg/identity"
 	"github.com/tsic404/kosd/pkg/pages"
+	"github.com/tsic404/kosd/pkg/panel"
 	"github.com/tsic404/kosd/pkg/settings"
 	"github.com/tsic404/kosd/pkg/write"
 )
@@ -261,7 +262,7 @@ func run() error {
 	defer domain.Close()
 
 	settingsService := settings.New(projection, store, settings.Config{Auditor: trail})
-	pagesService := pages.New(projection, pages.Config{Banners: banner})
+	pagesService := panel.New(projection, panel.Config{Dynamic: dynamicClient, Banners: banner})
 	appsService := apps.New(projection)
 	settingsAPI := settings.NewAPI(settingsService).Handler()
 	catalogueAPI := catalogue.NewAPI(catalogueService).Handler()

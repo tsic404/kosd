@@ -22,7 +22,7 @@ import (
 	"github.com/tsic404/kosd/pkg/endpoint/kosnetwork"
 	"github.com/tsic404/kosd/pkg/extension"
 	"github.com/tsic404/kosd/pkg/extension/kosupdater"
-	"github.com/tsic404/kosd/pkg/pages"
+	"github.com/tsic404/kosd/pkg/panel"
 	"github.com/tsic404/kosd/pkg/volume/kosstorage"
 	"github.com/tsic404/kosd/tests/acceptance/harness"
 )
@@ -116,14 +116,14 @@ func TestTC100EveryPageRendersItsDeclaredItems(t *testing.T) {
 	deviceReadings := &kosdevicemanager.Readings{Dynamic: cluster.Dynamic}
 	updaterReadings := &kosupdater.Readings{Dynamic: cluster.Dynamic}
 	diagnosticsReadings := &kosdiagnostics.Readings{Dynamic: cluster.Dynamic}
-	shell := cluster.StartShell(t, func(config *pages.Config) {
-		config.Readings = pages.Router{
-			kostaskmanager.Identifier:   taskmanagerReadings,
-			kosstorage.Identifier:       storageReadings,
-			kosnetwork.Identifier:       networkReadings,
-			kosdevicemanager.Identifier: deviceReadings,
-			kosupdater.Identifier:       updaterReadings,
-			kosdiagnostics.Identifier:   diagnosticsReadings,
+	shell := cluster.StartShell(t, func(config *panel.Config) {
+		config.Products = []panel.Product{
+			{Identifier: kostaskmanager.Identifier, Readings: taskmanagerReadings},
+			{Identifier: kosstorage.Identifier, Readings: storageReadings},
+			{Identifier: kosnetwork.Identifier, Readings: networkReadings},
+			{Identifier: kosdevicemanager.Identifier, Readings: deviceReadings},
+			{Identifier: kosupdater.Identifier, Readings: updaterReadings},
+			{Identifier: kosdiagnostics.Identifier, Readings: diagnosticsReadings},
 		}
 	})
 	clock := shell.Accounts.Clock.Now

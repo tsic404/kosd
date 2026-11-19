@@ -23,7 +23,7 @@ import (
 	"github.com/tsic404/kosd/pkg/extension"
 	"github.com/tsic404/kosd/pkg/identity"
 	"github.com/tsic404/kosd/pkg/maintenance"
-	"github.com/tsic404/kosd/pkg/pages"
+	"github.com/tsic404/kosd/pkg/panel"
 	"github.com/tsic404/kosd/pkg/settings/kossettings"
 	"github.com/tsic404/kosd/pkg/write"
 	"github.com/tsic404/kosd/tests/acceptance/harness"
@@ -100,8 +100,8 @@ func TestTC122OutOfBandCordonIsVisible(t *testing.T) {
 	cluster.ApplicationRound(t, controller, application)
 
 	readings := &kossettings.Readings{Dynamic: cluster.Dynamic}
-	shell := cluster.StartShell(t, func(config *pages.Config) {
-		config.Readings = pages.Router{kossettings.Identifier: readings}
+	shell := cluster.StartShell(t, func(config *panel.Config) {
+		config.Products = []panel.Product{{Identifier: kossettings.Identifier, Readings: readings}}
 	})
 	readings.Settings = shell.Settings
 	readings.Accounts = shell.Accounts.Store
