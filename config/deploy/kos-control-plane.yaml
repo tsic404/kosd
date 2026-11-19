@@ -1,0 +1,241 @@
+# 控制面工作负载与它需要的权限。它与 pkg/install 渲染的结果一致：同一镜像、单副本、Recreate。
+# 对象定义在 config/crd，先应用它再应用本文件：
+#   kubectl apply -f config/crd/ -f config/deploy/
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  labels:
+    managed-by: kosd
+  name: kos-system
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  labels:
+    managed-by: kosd
+  name: kos-control-plane
+  namespace: kos-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    managed-by: kosd
+  name: kos-control-plane
+rules:
+- apiGroups:
+  - kos.tsic.top
+  resources:
+  - '*'
+  verbs:
+  - '*'
+- apiGroups:
+  - ""
+  resources:
+  - namespaces
+  - nodes
+  - persistentvolumes
+  - serviceaccounts
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - apiextensions.k8s.io
+  resources:
+  - customresourcedefinitions
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - storage.k8s.io
+  resources:
+  - storageclasses
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - networking.k8s.io
+  resources:
+  - ingressclasses
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - rbac.authorization.k8s.io
+  resources:
+  - clusterroles
+  - clusterrolebindings
+  verbs:
+  - get
+  - list
+  - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  labels:
+    managed-by: kosd
+  name: kos-control-plane
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: kos-control-plane
+subjects:
+- kind: ServiceAccount
+  name: kos-control-plane
+  namespace: kos-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  labels:
+    managed-by: kosd
+  name: kos-control-plane
+  namespace: kos-system
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  - endpoints
+  - events
+  - persistentvolumeclaims
+  - pods
+  - pods/log
+  - secrets
+  - services
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - apps
+  resources:
+  - deployments
+  - statefulsets
+  - daemonsets
+  - replicasets
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - batch
+  resources:
+  - jobs
+  - cronjobs
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - networking.k8s.io
+  resources:
+  - ingresses
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - policy
+  resources:
+  - poddisruptionbudgets
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - limitranges
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - rbac.authorization.k8s.io
+  resources:
+  - roles
+  - rolebindings
+  verbs:
+  - get
+  - list
+  - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  labels:
+    managed-by: kosd
+  name: kos-control-plane
+  namespace: kos-system
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: kos-control-plane
+subjects:
+- kind: ServiceAccount
+  name: kos-control-plane
+  namespace: kos-system
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    managed-by: kosd
+  name: kos-control-plane
+  namespace: kos-system
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kos-control-plane
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: kos-control-plane
+    spec:
+      containers:
+      - image: ghcr.io/tsic404/kos-control-plane:v0.1.0
+        name: kos-control-plane
+        ports:
+        - containerPort: 8080
+      serviceAccountName: kos-control-plane
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    managed-by: kosd
+  name: kos-control-plane
+  namespace: kos-system
+spec:
+  ports:
+  - name: http
+    port: 8080
+    targetPort: 8080
+  selector:
+    app: kos-control-plane

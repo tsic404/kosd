@@ -516,3 +516,26 @@ make acceptance # 只跑 tests/acceptance，输出用例名
 
 验收测试使用 envtest 启动真实 kube-apiserver 与 etcd，安装 `config/crd` 后读写对象；
 环境变量 `KUBEBUILDER_ASSETS` 指向 envtest 二进制目录，`make test` 会下载并设置。
+
+## 控制面制品
+
+控制面是一个可执行进程与一个镜像，进程入口在 `cmd/kos-control-plane`：它把对象 API、账号与
+会话、设置域、目录来源、页面外壳、窗口应用投影与扩展装载装配成一个进程，并周期性重跑扩展
+装载以刷新贡献投影。
+
+```bash
+# 镜像：tag 就是 pkg/install 渲染的 DefaultImage，安装拉到的正是这里构建的产物。
+docker build -t ghcr.io/tsic404/kos-control-plane:v0.1.0 .
+
+# 集群：对象定义在前，工作负载与它需要的权限在后。
+kubectl apply -f config/crd/ -f config/deploy/
+
+# 探针：健康端点不需要会话，回答 ok / degraded / unavailable 与原因。
+kubectl -n kos-system port-forward deploy/kos-control-plane 8080:8080 &
+curl -s localhost:8080/api/v1/system/health
+```
+
+`config/deploy/kos-control-plane.yaml` 由 `pkg/install` 的渲染结果生成，两者由
+`pkg/install/deploy_test.go` 钉在一起：同一镜像、单副本与 `Recreate` 策略。节点没有出网时，
+镜像经 `docker save | ctr import` 旁路导入，`imagePullPolicy` 取默认的 `IfNotPresent`
+即可命中。
