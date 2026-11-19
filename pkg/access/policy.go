@@ -75,7 +75,9 @@ var ownerOnlyKinds = map[string]bool{
 // a class (C-14). The extension registry implements it.
 type ExtensionRoles interface {
 	// ObjectWriters returns the declared writer roles of one class; ok is false
-	// when no declaration names the class.
+	// when no declaration names the class's writer set, which leaves the class to
+	// C-59's default. ok with no roles is the opposite declaration: the set is
+	// present and empty, so no session role writes the class.
 	ObjectWriters(group, kind string) (writers []write.Role, ok bool)
 	// DeclaredBy returns the identifier of the extension declaring the class.
 	DeclaredBy(group, kind string) (identifier string, ok bool)
@@ -305,8 +307,9 @@ func (p *Policy) remove(ctx context.Context, session Session, request controlpla
 }
 
 // writeExtension judges an extension object's write by its declaration (C-18):
-// the declared writer roles may write it, and an undeclared class is the global
-// Owner's alone (C-59).
+// the declared writer roles may write it, a class whose writer set is declared
+// empty is written by no session role, the global Owner included, and a class
+// whose writer set is not declared is the global Owner's alone (C-59).
 func (p *Policy) writeExtension(session Session, ref controlplane.ObjectRef) (controlplane.Grant, error) {
 	if p.Extensions == nil {
 		if session.isOwner() {
