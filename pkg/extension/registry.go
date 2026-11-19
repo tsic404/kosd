@@ -108,8 +108,10 @@ func (r *Registry) DeclaredBy(group, kind string) (string, bool) {
 }
 
 // ObjectWriters returns the session roles an extension declared for writing its
-// object class (C-18, C-59). ok is false when no permission entry names the
-// class, and the class is then the global Owner's alone.
+// object class (C-18, C-59). ok is false when no permission entry declares the
+// class's writer set, and the class then takes C-59's default: the global Owner
+// writes it. ok is true with no roles when the declaration carries the set
+// empty, and no session role writes the class, the global Owner included.
 func (r *Registry) ObjectWriters(group, kind string) ([]write.Role, bool) {
 	if r == nil {
 		return nil, false
@@ -118,7 +120,9 @@ func (r *Registry) ObjectWriters(group, kind string) ([]write.Role, bool) {
 	if !ok {
 		return nil, false
 	}
-	return append([]write.Role(nil), writers...), true
+	declared := make([]write.Role, len(writers))
+	copy(declared, writers)
+	return declared, true
 }
 
 // ObjectClass resolves one served extension class (C-19).
@@ -324,9 +328,16 @@ func buildRegistry(components []activated) (*Registry, map[string]Contributions,
 		}
 		// A permission entry names the contribution it governs: the class kind,
 		// or the group-qualified form. Only classes this component actually
-		// serves take its writer list (C-18, C-59).
+		// serves take its writer list (C-18, C-59). An entry that carries the
+		// set empty still declares the class: it registers no writers, which is
+		// not the same as leaving the class to C-59's default.
+		//
+		// One class's writers are declared once. A second entry for the same
+		// class would otherwise overwrite the first, and the two forms would
+		// then differ by entry order instead of by declaration (C-18, C-59).
+		declaredWriters := map[GroupKind]bool{}
 		for _, permission := range component.loaded.Permissions {
-			if len(permission.ObjectWriters) == 0 {
+			if permission.ObjectWriters == nil {
 				continue
 			}
 			for _, class := range kept {
@@ -334,7 +345,15 @@ func buildRegistry(components []activated) (*Registry, map[string]Contributions,
 				if class.Kind != permission.Contribution && key.String() != permission.Contribution {
 					continue
 				}
-				registry.writers[key] = append([]write.Role(nil), permission.ObjectWriters...)
+				if declaredWriters[key] {
+					recordConflict(conflicts, component.name, ClassObjectClasses,
+						fmt.Sprintf("class %s declares its object writers twice", key.String()))
+					continue
+				}
+				declaredWriters[key] = true
+				writers := make([]write.Role, len(permission.ObjectWriters))
+				copy(writers, permission.ObjectWriters)
+				registry.writers[key] = writers
 			}
 		}
 		entry.ObjectClasses = kept

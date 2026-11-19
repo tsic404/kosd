@@ -68,3 +68,61 @@ func TestMemberRestoreJobNeedsItsOwnPolicy(t *testing.T) {
 		t.Fatalf("the global Owner was refused: %v", err)
 	}
 }
+
+// declaredClasses answers the extension seam from fixed declarations.
+type declaredClasses struct {
+	group, kind string
+	writers     []write.Role
+	declared    bool
+}
+
+func (d declaredClasses) ObjectWriters(group, kind string) ([]write.Role, bool) {
+	if group != d.group || kind != d.kind {
+		return nil, false
+	}
+	return d.writers, d.declared
+}
+
+func (d declaredClasses) DeclaredBy(group, kind string) (string, bool) {
+	if group != d.group || kind != d.kind {
+		return "", false
+	}
+	return "demo.records", true
+}
+
+// TestExtensionWriterSetFormsAreJudgedApart covers C-18's two declared forms: an
+// empty writer set denies every session role, the global Owner included, while
+// an absent set leaves the class to C-59's default (KOSD-AC-80).
+func TestExtensionWriterSetFormsAreJudgedApart(t *testing.T) {
+	const group = "records.example.test"
+	request := controlplane.Request{
+		Verb: controlplane.VerbCreate,
+		Ref:  controlplane.ObjectRef{Group: group, Kind: "Audit", Namespace: "apps", Name: "one"},
+		Object: map[string]any{
+			"metadata": map[string]any{"name": "one", "namespace": "apps"},
+			"spec":     map[string]any{"size": "small"},
+		},
+	}
+	sessions := map[string]access.Session{
+		"owner":  {Username: "root", Role: write.RoleOwner},
+		"member": {Username: "alice", Role: write.RoleMember},
+		"guest":  {Username: "guest", Role: write.RoleGuest},
+	}
+
+	declaredEmpty := &access.Policy{Extensions: declaredClasses{group: group, kind: "Audit", declared: true}}
+	for name, session := range sessions {
+		if _, err := declaredEmpty.Decide(context.Background(), session, request); err == nil {
+			t.Fatalf("%s wrote a class whose writer set is declared empty", name)
+		}
+	}
+
+	undeclared := &access.Policy{Extensions: declaredClasses{group: group, kind: "Audit"}}
+	if _, err := undeclared.Decide(context.Background(), sessions["owner"], request); err != nil {
+		t.Fatalf("the global Owner was refused a class left to C-59's default: %v", err)
+	}
+	for _, name := range []string{"member", "guest"} {
+		if _, err := undeclared.Decide(context.Background(), sessions[name], request); err == nil {
+			t.Fatalf("%s wrote a class left to C-59's default", name)
+		}
+	}
+}

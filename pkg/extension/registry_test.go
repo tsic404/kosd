@@ -162,3 +162,119 @@ func containsString(values []string, want string) bool {
 	}
 	return false
 }
+
+// TestWriterSetKeepsEmptyAndAbsentApart checks the two declared forms of C-18
+// through the artifact, loading and the registry: a writer set declared empty
+// registers the class with no roles, while an absent set leaves the class to
+// C-59's default (KOSD-AC-80).
+func TestWriterSetKeepsEmptyAndAbsentApart(t *testing.T) {
+	const group = "records.example.test"
+	declaration := Declaration{
+		Identifier: "demo.records",
+		Version:    "1.0.0",
+		APIGroup:   group,
+		Contributions: Contributions{
+			ObjectClasses: []ObjectClass{
+				{Group: group, Kind: "Audit", Resource: "audits", Versions: []string{"v1"}, Namespaced: true},
+				{Group: group, Kind: "Note", Resource: "notes", Versions: []string{"v1"}, Namespaced: true},
+			},
+		},
+		Permissions: []Permission{
+			{Contribution: "Audit", ObjectWriters: RoleSet{}},
+		},
+	}
+
+	// The artifact keeps the declared empty set: an empty array is not the same
+	// wire form as an absent key.
+	content, _, err := Pack(declaration, nil)
+	if err != nil {
+		t.Fatalf("pack declaration: %v", err)
+	}
+	artifact, err := Read(content)
+	if err != nil {
+		t.Fatalf("read package: %v", err)
+	}
+	if artifact.Declaration.Permissions[0].ObjectWriters == nil {
+		t.Fatal("packing turned the declared empty writer set into an absent one")
+	}
+
+	registry := Evaluate([]Request{packageRequest(t, "records", artifact.Declaration, time.Now())}).Registry
+	writers, declared := registry.ObjectWriters(group, "Audit")
+	if !declared {
+		t.Fatal("the class with an explicitly empty writer set was not registered")
+	}
+	if len(writers) != 0 {
+		t.Fatalf("writers of the declared empty set = %v, want none", writers)
+	}
+	if _, declared := registry.ObjectWriters(group, "Note"); declared {
+		t.Fatal("a class with no writer declaration was registered as declared")
+	}
+}
+
+// TestDuplicateWriterDeclarationIsRefused checks that a second writer
+// declaration for one class is refused instead of overwriting the first: the
+// declared empty set stays the class's writer set, the later non-empty entry
+// does not restore Owner writes, and the conflict names the class (C-18, C-59).
+func TestDuplicateWriterDeclarationIsRefused(t *testing.T) {
+	const group = "records.example.test"
+	class := ObjectClass{Group: group, Kind: "Audit", Resource: "audits", Versions: []string{"v1"}, Namespaced: true}
+	wantProblem := "class " + class.GroupKind().String() + " declares its object writers twice"
+
+	cases := []struct {
+		name        string
+		permissions []Permission
+		wantWriters []write.Role
+	}{
+		{
+			name: "declared empty first",
+			permissions: []Permission{
+				{Contribution: "Audit", ObjectWriters: RoleSet{}},
+				{Contribution: "Audit", ObjectWriters: RoleSet{write.RoleOwner}},
+			},
+			wantWriters: []write.Role{},
+		},
+		{
+			name: "declared non-empty first",
+			permissions: []Permission{
+				{Contribution: "Audit", ObjectWriters: RoleSet{write.RoleOwner}},
+				{Contribution: "Audit", ObjectWriters: RoleSet{}},
+			},
+			wantWriters: []write.Role{write.RoleOwner},
+		},
+	}
+
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			component := activated{name: "demo.records", loaded: Loaded{
+				Contributions: Contributions{ObjectClasses: []ObjectClass{class}},
+				Permissions:   testCase.permissions,
+			}}
+			registry, _, conflicts := buildRegistry([]activated{component})
+
+			reported := false
+			for _, problem := range conflicts[component.name] {
+				for _, item := range problem.Items {
+					if problem.Class == ClassObjectClasses && item == wantProblem {
+						reported = true
+					}
+				}
+			}
+			if !reported {
+				t.Fatalf("conflicts = %v, want %q", conflicts[component.name], wantProblem)
+			}
+
+			writers, declared := registry.ObjectWriters(group, "Audit")
+			if !declared {
+				t.Fatal("the class stopped being declared by the duplicate")
+			}
+			if len(writers) != len(testCase.wantWriters) {
+				t.Fatalf("writers = %v, want %v", writers, testCase.wantWriters)
+			}
+			for index, role := range writers {
+				if role != testCase.wantWriters[index] {
+					t.Fatalf("writers = %v, want %v", writers, testCase.wantWriters)
+				}
+			}
+		})
+	}
+}

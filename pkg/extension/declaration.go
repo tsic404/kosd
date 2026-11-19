@@ -179,9 +179,22 @@ type Permission struct {
 	// RequiredRole is the control-plane session role it needs.
 	RequiredRole string `json:"requiredRole,omitempty"`
 	// ObjectWriters lists the session roles that may write the extension's
-	// objects.
-	ObjectWriters []write.Role `json:"objectWriters,omitempty"`
+	// objects. The nil set is the form that does not declare the writers, and
+	// C-59's default applies; a present set with no roles declares that no
+	// session role writes the class, the global Owner included (C-18, C-59).
+	ObjectWriters RoleSet `json:"objectWriters,omitzero"`
 }
+
+// RoleSet is the declared writer role set of one object class (C-18). A nil
+// set is the form a declaration omits; a non-nil set with no roles is the
+// declaration that no session role may write the class. The two forms mean
+// different things (C-59), so the set keeps them apart from the artifact
+// through the judgement instead of folding an empty set into an absent one.
+type RoleSet []write.Role
+
+// IsZero reports the omitted form. A declared empty set is not zero, so the
+// artifact keeps carrying it as an empty array.
+func (s RoleSet) IsZero() bool { return s == nil }
 
 // ReadScope is the read side of a declared permission: API groups and kinds.
 type ReadScope struct {
