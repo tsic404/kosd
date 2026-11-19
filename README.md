@@ -243,6 +243,12 @@ KOS 不再写它；放弃写入 `declined`，对象留在 unmanaged，不再被�
   `manifest.json`、`assets/` 与 `digest` 的包，摘要覆盖清单与全部 UI 资产，结构与摘要任一
   不匹配即拒绝。`Installer` 读取集群里带归属标记的组件，经 `ArtifactSource` 取回工件。
   同一扩展标识同时只保留最先安装的版本；adopted 组件不携带包，也不贡献对象类、页面或控制器。
+- **工件来源**：部署形态的控制面用 `extension.DirectoryArtifacts` 从 `-packages` 指定的目录
+  （默认 `/var/lib/kosd/packages`）读取，组件的 `spec.package.reference` 是该目录下的相对路径；
+  每个装载轮次重读文件，摘要按读到的真实字节重算，不符即拒绝并给出实际与声明的摘要，路径
+  逃逸目录的引用被拒绝。运维把包文件放进控制面所在节点的该目录即完成投递（`config/deploy`
+  以只读卷挂入容器，`pkg/install` 渲染同一份工作负载）；第一方系统应用与第三方扩展走同一
+  目录与同一 `SystemComponent` 通道，没有专用 API。
 - **声明**（C-18）：标识、版本、目标框架版本、十类贡献（对象类、控制器、能力、页面与动作、
   设置项、目录来源、发现适配器、诊断适配器、偏好结构、窗口应用）以及依赖（能力与组件，均带
   版本范围）。目标框架版本随声明装载，兼容判定属于独立契约。
@@ -531,6 +537,9 @@ docker build -t ghcr.io/tsic404/kos-control-plane:v0.1.0 .
 
 # 集群：对象定义在前，工作负载与它需要的权限在后。
 kubectl apply -f config/crd/ -f config/deploy/
+
+# 扩展包：放到控制面所在节点的 /var/lib/kosd/packages（k3d 可用 docker cp 投递到节点容器），
+# 再创建 spec.package.reference 指向该文件的 SystemComponent；控制面每个装载轮次重读该目录。
 
 # 探针：健康端点不需要会话，回答 ok / degraded / unavailable 与原因。
 kubectl -n kos-system port-forward deploy/kos-control-plane 8080:8080 &

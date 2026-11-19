@@ -13,9 +13,10 @@ RUN go build -trimpath -ldflags="-s -w" -o /out/kos-control-plane ./cmd/kos-cont
 FROM alpine:3.22
 
 # The process keeps its database beside itself; the directory exists in the
-# image so a deployment may mount a volume over it or run without one.
+# image so a deployment may mount a volume over it or run without one. The
+# package directory is where a deployment mounts the package volume (C-17).
 RUN adduser -D -u 65532 -h /var/lib/kosd kos \
-    && mkdir -p /var/lib/kosd \
+    && mkdir -p /var/lib/kosd/packages \
     && chown -R 65532:65532 /var/lib/kosd
 COPY --from=build /out/kos-control-plane /usr/local/bin/kos-control-plane
 
