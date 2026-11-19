@@ -23,6 +23,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/dynamic"
+	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 
@@ -35,9 +36,11 @@ import (
 	"github.com/tsic404/kosd/pkg/degrade"
 	"github.com/tsic404/kosd/pkg/extension"
 	"github.com/tsic404/kosd/pkg/identity"
+	"github.com/tsic404/kosd/pkg/maintenance"
 	"github.com/tsic404/kosd/pkg/pages"
 	"github.com/tsic404/kosd/pkg/panel"
 	"github.com/tsic404/kosd/pkg/settings"
+	"github.com/tsic404/kosd/pkg/upgrade"
 	"github.com/tsic404/kosd/pkg/write"
 )
 
@@ -226,6 +229,10 @@ func run() error {
 	if err != nil {
 		return fmt.Errorf("build object definition client: %w", err)
 	}
+	kubeClient, err := kubernetes.NewForConfig(restConfig)
+	if err != nil {
+		return fmt.Errorf("build run kernel client: %w", err)
+	}
 
 	store, err := identity.Open(ctx, identity.OpenOptions{Path: databasePath})
 	if err != nil {
@@ -242,6 +249,35 @@ func run() error {
 		Preferences: projection,
 		Auditor:     trail,
 		Log:         logger,
+	})
+	// The upgrade preflight record shares the control-plane database with the
+	// accounts, and its two writes are the Owner's (KOSD-C-59, KOSD-C-88).
+	resources := resourcesOf(discoveryClient)
+	kernelWriter := &write.Writer{Dynamic: dynamicClient, Resources: resources}
+	maintenanceFlow := &maintenance.Service{
+		Dynamic: dynamicClient,
+		Writer:  kernelWriter,
+		Pods:    maintenance.Cluster{Kube: kubeClient},
+		Auditor: trail,
+		Log:     logger,
+	}
+	componentInstaller := &extension.Installer{
+		Dynamic:   dynamicClient,
+		Resources: resources,
+		Artifacts: extension.MemoryArtifacts{},
+		Status:    kernelWriter,
+	}
+	upgrades := upgrade.New(upgrade.Config{
+		Store: store,
+		Platform: &upgrade.Flow{
+			Maintenance:  maintenanceFlow,
+			Applications: upgrade.ClusterApplications{Dynamic: dynamicClient},
+			Nodes:        upgrade.ClusterNodes{Dynamic: dynamicClient},
+		},
+		Extensions: componentInstaller,
+		Installed:  projection,
+		Auditor:    trail,
+		Log:        logger,
 	})
 	catalogueService := catalogue.New(projection, dynamicClient)
 	domain, err := controlplane.New(controlplane.Config{
@@ -268,6 +304,7 @@ func run() error {
 	catalogueAPI := catalogue.NewAPI(catalogueService).Handler()
 	pagesAPI := pages.NewAPI(pagesService).Handler()
 	appsAPI := apps.NewAPI(appsService).Handler()
+	upgradesAPI := upgrade.NewAPI(upgrades).Handler()
 	shell := http.NewServeMux()
 	shell.Handle("/api/v1/settings", settingsAPI)
 	shell.Handle("/api/v1/settings/", settingsAPI)
@@ -275,6 +312,9 @@ func run() error {
 	shell.Handle("/api/v1/pages", pagesAPI)
 	shell.Handle("/api/v1/pages/", pagesAPI)
 	shell.Handle("/api/v1/apps", appsAPI)
+	shell.Handle("/api/v1/upgrade-preflights", upgradesAPI)
+	shell.Handle("/api/v1/upgrade-preflights/", upgradesAPI)
+	shell.Handle("/api/v1/upgrade-requests", upgradesAPI)
 	shell.Handle("/", domain.Handler())
 	accountsAPI := identity.NewAPI(accounts).Handler(shell)
 	// The health endpoint is the probe surface: it answers before any session
