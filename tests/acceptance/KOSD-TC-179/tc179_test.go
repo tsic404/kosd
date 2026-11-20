@@ -15,10 +15,20 @@ import (
 	"time"
 
 	"github.com/tsic404/kosd/pkg/controlplane"
+	"github.com/tsic404/kosd/pkg/extension"
+	"github.com/tsic404/kosd/pkg/identity"
 	"github.com/tsic404/kosd/pkg/maintenance"
+	"github.com/tsic404/kosd/pkg/markers"
 	"github.com/tsic404/kosd/pkg/upgrade"
 	"github.com/tsic404/kosd/pkg/write"
 	"github.com/tsic404/kosd/tests/acceptance/harness"
+
+	"github.com/tsic404/kosd/api"
+	"github.com/tsic404/kosd/api/v1beta1"
+
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
 const (
@@ -38,6 +48,14 @@ const (
 	preflightPath   = "/api/v1/upgrade-preflights"
 	upgradePath     = "/api/v1/upgrade-requests"
 	nodeKubelet     = "v1.36.0"
+
+	strandedComponent   = "kubevirt"
+	strandedIdentifier  = "thirdparty.kubevirt"
+	survivingComponent  = "kubevirt-next"
+	survivingIdentifier = "thirdparty.kubevirt-next"
+	targetFrameworkAPI  = "2.0"
+	servedFrameworkAPI  = "1.1"
+	adoptedComponent    = "legacy-catalogue"
 )
 
 // TestTC179PreflightRecordAndWriterRole drives the case the frozen entry
@@ -60,6 +78,9 @@ func TestTC179PreflightRecordAndWriterRole(t *testing.T) {
 	cluster.CreateIn(t, appsNamespace, application)
 
 	surface := harness.OpenIdentity(t, nil, nil)
+	artifacts := extension.MemoryArtifacts{}
+	cluster.InstallPackage(t, strandedComponent, frameworkDeclaration(strandedIdentifier, ">=1.0 <2.0"), artifacts)
+	cluster.InstallPackage(t, survivingComponent, frameworkDeclaration(survivingIdentifier, ">=1.0"), artifacts)
 	flow := &upgrade.Flow{
 		Maintenance: &maintenance.Service{
 			Dynamic: cluster.Dynamic,
@@ -71,10 +92,11 @@ func TestTC179PreflightRecordAndWriterRole(t *testing.T) {
 		Nodes:        upgrade.ClusterNodes{Dynamic: cluster.Dynamic},
 	}
 	records := upgrade.New(upgrade.Config{
-		Store:    surface.Store,
-		Platform: flow,
-		Auditor:  surface.Trail,
-		Now:      surface.Clock.Now,
+		Store:      surface.Store,
+		Platform:   flow,
+		Frameworks: cluster.ExtensionInstaller(artifacts),
+		Auditor:    surface.Trail,
+		Now:        surface.Clock.Now,
 	})
 	api := upgrade.NewAPI(records)
 	mux := http.NewServeMux()
@@ -90,10 +112,11 @@ func TestTC179PreflightRecordAndWriterRole(t *testing.T) {
 	// One Owner preflight stores the request with the result the flow computed,
 	// and the record reads back with the same content and its observation time.
 	request := map[string]any{
-		"kind":          "platform",
-		"targetVersion": targetVersion,
-		"downtime":      downtime,
-		"nodes":         []string{nodeName},
+		"kind":             "platform",
+		"targetVersion":    targetVersion,
+		"frameworkTargets": []string{targetFrameworkAPI},
+		"downtime":         downtime,
+		"nodes":            []string{nodeName},
 	}
 	status, body := surface.HTTP.Call(t, http.MethodPost, preflightPath, request, bearer(ownerToken))
 	if status != http.StatusCreated {
@@ -115,6 +138,29 @@ func TestTC179PreflightRecordAndWriterRole(t *testing.T) {
 	if got := stringsOf(t, result["affectedApplications"]); !reflect.DeepEqual(got, []string{appsNamespace + "/" + applicationName}) {
 		t.Fatalf("affected applications = %v, want [%s/%s]", got, appsNamespace, applicationName)
 	}
+	// The preflight write computed the framework API version axis from the
+	// target release's declared set and the installed extensions' ranges
+	// (C-16, C-88): the served 1.1 is removed, and only the extension whose
+	// range admits no target version depends on it. The surviving extension is
+	// not listed, which is what makes a wrong dependent set fail this case.
+	if got := stringsOf(t, result["removedFrameworkVersions"]); !reflect.DeepEqual(got, []string{servedFrameworkAPI}) {
+		t.Fatalf("removed framework API versions = %v, want the served [%s]", got, servedFrameworkAPI)
+	}
+	dependents := dependentsOf(t, result["frameworkDependents"])
+	if len(dependents) != 1 {
+		t.Fatalf("framework dependents = %v, want only %s", dependents, strandedComponent)
+	}
+	if dependent := dependents[0]; dependent["component"] != strandedComponent ||
+		dependent["identifier"] != strandedIdentifier || dependent["frameworkVersion"] != ">=1.0 <2.0" {
+		t.Fatalf("framework dependent = %v, want %s declaring >=1.0 <2.0", dependent, strandedComponent)
+	}
+	if result["isBlocked"] != true {
+		t.Fatalf("record isBlocked = %v, want true while %s depends on the removed %s",
+			result["isBlocked"], strandedComponent, servedFrameworkAPI)
+	}
+	if harness.String(result, "targetVersion") != targetVersion {
+		t.Fatalf("record targetVersion = %q, want the node version %q", harness.String(result, "targetVersion"), targetVersion)
+	}
 	if harness.String(first, "observedAt") == "" {
 		t.Fatalf("the record carries no observation time: %v", first)
 	}
@@ -128,6 +174,9 @@ func TestTC179PreflightRecordAndWriterRole(t *testing.T) {
 	}
 	if !sameRecord(first, body) {
 		t.Fatalf("the stored record differs from the preflight answer:\n preflight %v\n stored    %v", first, body)
+	}
+	if readBack := resultOf(t, body); readBack["isBlocked"] != true {
+		t.Fatalf("the stored record isBlocked = %v, want true while the dependent remains", readBack["isBlocked"])
 	}
 
 	// The same request submitted again keeps one record: no second record is
@@ -146,7 +195,8 @@ func TestTC179PreflightRecordAndWriterRole(t *testing.T) {
 	// A later preflight becomes the current record and marks the first one stale
 	// without deleting it (C-88).
 	status, body = surface.HTTP.Call(t, http.MethodPost, preflightPath, map[string]any{
-		"kind": "platform", "targetVersion": nextVersion, "downtime": downtime, "nodes": []string{nodeName},
+		"kind": "platform", "targetVersion": nextVersion, "frameworkTargets": []string{targetFrameworkAPI},
+		"downtime": downtime, "nodes": []string{nodeName},
 	}, bearer(ownerToken))
 	if status != http.StatusCreated {
 		t.Fatalf("the second preflight write = %d %v", status, body)
@@ -155,6 +205,11 @@ func TestTC179PreflightRecordAndWriterRole(t *testing.T) {
 	secondID := harness.String(second, "id")
 	if secondID == "" || secondID == firstID {
 		t.Fatalf("the second preflight produced %q, want a new record", secondID)
+	}
+	// The node target moved from v1.38.0 to v1.39.0; the framework API version
+	// axis did not, so the second record removes the same framework version.
+	if got := stringsOf(t, resultOf(t, second)["removedFrameworkVersions"]); !reflect.DeepEqual(got, []string{servedFrameworkAPI}) {
+		t.Fatalf("the second record's removed framework API versions = %v, want [%s] though only the node target moved", got, servedFrameworkAPI)
 	}
 	items := itemsOf(t, surface, ownerToken)
 	if len(items) != 2 {
@@ -276,6 +331,258 @@ func TestTC179PreflightRecordAndWriterRole(t *testing.T) {
 	}
 }
 
+// TestTC179FrameworkAxisBlocksAndClears pins C-16's answers on the record: an
+// equivalent spelling of the served version removes nothing, a real move lists
+// the stranded extension and blocks the record, and releasing the dependency
+// lets a later preflight pass.
+func TestTC179FrameworkAxisBlocksAndClears(t *testing.T) {
+	cluster := harness.Start(t)
+	createNode(t, cluster, nodeName, nodeKubelet)
+	surface := harness.OpenIdentity(t, nil, nil)
+	artifacts := extension.MemoryArtifacts{}
+	cluster.InstallPackage(t, strandedComponent, frameworkDeclaration(strandedIdentifier, ">=1.0 <2.0"), artifacts)
+	cluster.InstallPackage(t, survivingComponent, frameworkDeclaration(survivingIdentifier, ">=1.0"), artifacts)
+	records := recordsOver(cluster, surface, artifacts)
+	owner := identity.Session{Username: ownerName, Role: write.RoleOwner}
+	ctx := context.Background()
+
+	// v1.1 names the served 1.1 by another spelling, so nothing is removed and
+	// no extension is stranded (C-16).
+	equivalent, failure := records.Preflight(ctx, owner, preflightOf(targetVersion, []string{"v" + servedFrameworkAPI}))
+	if failure != nil {
+		t.Fatalf("the preflight over an equivalent spelling: %v", failure)
+	}
+	if len(equivalent.Result.RemovedFrameworkVersions) != 0 || len(equivalent.Result.FrameworkDependents) != 0 || equivalent.Result.IsBlocked {
+		t.Fatalf("an equivalent spelling removed %v with dependents %v, blocked=%v, want none",
+			equivalent.Result.RemovedFrameworkVersions, equivalent.Result.FrameworkDependents, equivalent.Result.IsBlocked)
+	}
+
+	// A real move to 2.0 removes 1.1, lists the stranded extension and blocks
+	// the record; the stored copy reads back blocked (C-16, C-88).
+	blocked, failure := records.Preflight(ctx, owner, preflightOf(targetVersion, []string{targetFrameworkAPI}))
+	if failure != nil {
+		t.Fatalf("the preflight over the removed served version: %v", failure)
+	}
+	if got := blocked.Result.RemovedFrameworkVersions; !reflect.DeepEqual(got, []string{servedFrameworkAPI}) {
+		t.Fatalf("removed framework API versions = %v, want [%s]", got, servedFrameworkAPI)
+	}
+	if !blocked.Result.IsBlocked || len(blocked.Result.FrameworkDependents) != 1 ||
+		blocked.Result.FrameworkDependents[0].Component != strandedComponent {
+		t.Fatalf("blocked=%v dependents=%v, want %s stranding the upgrade",
+			blocked.Result.IsBlocked, blocked.Result.FrameworkDependents, strandedComponent)
+	}
+	if stored := findRecord(t, records, blocked.ID); !stored.Result.IsBlocked {
+		t.Fatal("the stored record lost the framework block")
+	}
+
+	// Releasing the dependency clears the block on a later preflight.
+	cluster.DeleteComponent(t, strandedComponent)
+	cluster.ExtensionState(t, artifacts)
+	cleared, failure := records.Preflight(ctx, owner, preflightOf(nextVersion, []string{targetFrameworkAPI}))
+	if failure != nil {
+		t.Fatalf("the preflight after the dependency left: %v", failure)
+	}
+	if got := cleared.Result.RemovedFrameworkVersions; !reflect.DeepEqual(got, []string{servedFrameworkAPI}) {
+		t.Fatalf("removed framework API versions after the release = %v, want [%s]", got, servedFrameworkAPI)
+	}
+	if cleared.Result.IsBlocked || len(cleared.Result.FrameworkDependents) != 0 {
+		t.Fatalf("the record is still blocked: %+v", cleared.Result)
+	}
+}
+
+// TestTC179UnreadablePackageRefusesTheRecord pins C-88's refusal: with the real
+// installer, an installed extension whose package is gone or corrupt makes the
+// framework axis undecidable, so the preflight write stores no record that
+// would claim no extension depends on the removal.
+func TestTC179UnreadablePackageRefusesTheRecord(t *testing.T) {
+	cluster := harness.Start(t)
+	createNode(t, cluster, nodeName, nodeKubelet)
+	surface := harness.OpenIdentity(t, nil, nil)
+	artifacts := extension.MemoryArtifacts{}
+	cluster.InstallPackage(t, strandedComponent, frameworkDeclaration(strandedIdentifier, ">=1.0 <2.0"), artifacts)
+	records := recordsOver(cluster, surface, artifacts)
+	owner := identity.Session{Username: ownerName, Role: write.RoleOwner}
+	ctx := context.Background()
+	reference := "test://" + strandedComponent
+
+	// The readable package names its dependent, so the record is blocked.
+	readable, failure := records.Preflight(ctx, owner, preflightOf(targetVersion, []string{targetFrameworkAPI}))
+	if failure != nil {
+		t.Fatalf("the preflight over a readable package: %v", failure)
+	}
+	if len(readable.Result.FrameworkDependents) != 1 || !readable.Result.IsBlocked {
+		t.Fatalf("dependents=%v blocked=%v, want %s stranding the upgrade",
+			readable.Result.FrameworkDependents, readable.Result.IsBlocked, strandedComponent)
+	}
+	content := artifacts[reference]
+
+	// A package that is no longer fetchable refuses the write.
+	delete(artifacts, reference)
+	_, failure = records.Preflight(ctx, owner, preflightOf(nextVersion, []string{targetFrameworkAPI}))
+	if failure == nil || failure.Code != controlplane.CodeClusterUnavailable {
+		t.Fatalf("a preflight over a lost package = %v, want %q", failure, controlplane.CodeClusterUnavailable)
+	}
+	if stored := countRecords(t, records); stored != 1 {
+		t.Fatalf("the refused preflight left %d records, want the one readable record", stored)
+	}
+
+	// A package that cannot be decoded is undecidable for the same reason.
+	artifacts[reference] = []byte("not an extension package")
+	_, failure = records.Preflight(ctx, owner, preflightOf("v1.40.0", []string{targetFrameworkAPI}))
+	if failure == nil || failure.Code != controlplane.CodeClusterUnavailable {
+		t.Fatalf("a preflight over a corrupt package = %v, want %q", failure, controlplane.CodeClusterUnavailable)
+	}
+	if stored := countRecords(t, records); stored != 1 {
+		t.Fatalf("the refused preflight left %d records, want the one readable record", stored)
+	}
+
+	// Restoring the package finds the dependent again: the refusal was about
+	// the unreadable input, not a permanent hole in the record.
+	artifacts[reference] = content
+	restored, failure := records.Preflight(ctx, owner, preflightOf("v1.41.0", []string{targetFrameworkAPI}))
+	if failure != nil {
+		t.Fatalf("the preflight after restoring the package: %v", failure)
+	}
+	if len(restored.Result.FrameworkDependents) != 1 || !restored.Result.IsBlocked {
+		t.Fatalf("restored dependents=%v blocked=%v, want %s stranding the upgrade",
+			restored.Result.FrameworkDependents, restored.Result.IsBlocked, strandedComponent)
+	}
+	if stored := countRecords(t, records); stored != 2 {
+		t.Fatalf("the restored preflight left %d records, want the readable and the restored one", stored)
+	}
+}
+
+// TestTC179ClearedPackageReferenceRefusesTheRecord pins C-88's input
+// completeness through the real installer: clearing an installed managed
+// component's package reference is not an uninstall, so the preflight write
+// refuses instead of storing a record that claims nothing depends on the
+// removal. An adopted component carries no package by design (C-17) and stays
+// out of the input, so a preflight over it alone still answers.
+func TestTC179ClearedPackageReferenceRefusesTheRecord(t *testing.T) {
+	cluster := harness.Start(t)
+	createNode(t, cluster, nodeName, nodeKubelet)
+	surface := harness.OpenIdentity(t, nil, nil)
+	artifacts := extension.MemoryArtifacts{}
+	cluster.InstallPackage(t, strandedComponent, frameworkDeclaration(strandedIdentifier, ">=1.0 <2.0"), artifacts)
+	records := recordsOver(cluster, surface, artifacts)
+	owner := identity.Session{Username: ownerName, Role: write.RoleOwner}
+	ctx := context.Background()
+
+	readable, failure := records.Preflight(ctx, owner, preflightOf(targetVersion, []string{targetFrameworkAPI}))
+	if failure != nil {
+		t.Fatalf("the preflight over a readable package: %v", failure)
+	}
+	if len(readable.Result.FrameworkDependents) != 1 || !readable.Result.IsBlocked {
+		t.Fatalf("dependents=%v blocked=%v, want %s stranding the upgrade",
+			readable.Result.FrameworkDependents, readable.Result.IsBlocked, strandedComponent)
+	}
+
+	// Clearing the reference leaves the component registered while its package
+	// is unverified, so the axis is undecidable and the write must refuse.
+	clearPackageReference(t, cluster, strandedComponent)
+	_, failure = records.Preflight(ctx, owner, preflightOf(nextVersion, []string{targetFrameworkAPI}))
+	if failure == nil || failure.Code != controlplane.CodeClusterUnavailable {
+		t.Fatalf("a preflight over a cleared package reference = %v, want %q", failure, controlplane.CodeClusterUnavailable)
+	}
+	if stored := countRecords(t, records); stored != 1 {
+		t.Fatalf("the refused preflight left %d records, want the one readable record", stored)
+	}
+
+	// An adopted component carries no package by design, so it is not an
+	// undecidable input: with the managed one gone, the preflight answers.
+	cluster.DeleteComponent(t, strandedComponent)
+	cluster.ExtensionState(t, artifacts)
+	adopted := harness.Manifest("SystemComponent", "", adoptedComponent, map[string]string{
+		markers.AdoptedBy:      "operator",
+		markers.AdoptionReason: "pre-existing",
+	}, nil)
+	cluster.Create(t, &unstructured.Unstructured{Object: adopted})
+	unblocked, failure := records.Preflight(ctx, owner, preflightOf("v1.40.0", []string{targetFrameworkAPI}))
+	if failure != nil {
+		t.Fatalf("the preflight over an adopted component without a package: %v", failure)
+	}
+	if len(unblocked.Result.FrameworkDependents) != 0 || unblocked.Result.IsBlocked {
+		t.Fatalf("an adopted component produced dependents %v blocked=%v, want none",
+			unblocked.Result.FrameworkDependents, unblocked.Result.IsBlocked)
+	}
+	if stored := countRecords(t, records); stored != 2 {
+		t.Fatalf("the adopted-component preflight left %d records, want the readable and this one", stored)
+	}
+}
+
+// TestTC179UpgradeReportsAChangedDependentDeclaration pins C-88's comparison
+// through the upgrade entry: the same component staying a dependent while its
+// declared range moves is a difference the user can read, and an unchanged
+// cluster reports none.
+func TestTC179UpgradeReportsAChangedDependentDeclaration(t *testing.T) {
+	cluster := harness.Start(t)
+	createNode(t, cluster, nodeName, nodeKubelet)
+	surface := harness.OpenIdentity(t, nil, nil)
+	artifacts := extension.MemoryArtifacts{}
+	cluster.InstallPackage(t, strandedComponent, frameworkDeclaration(strandedIdentifier, ">=1.0 <2.0"), artifacts)
+	records := recordsOver(cluster, surface, artifacts)
+	owner := identity.Session{Username: ownerName, Role: write.RoleOwner}
+	ctx := context.Background()
+
+	record, failure := records.Preflight(ctx, owner, preflightOf(targetVersion, []string{targetFrameworkAPI}))
+	if failure != nil {
+		t.Fatalf("the preflight: %v", failure)
+	}
+	if len(record.Result.FrameworkDependents) != 1 {
+		t.Fatalf("dependents = %v, want %s", record.Result.FrameworkDependents, strandedComponent)
+	}
+
+	// The cluster still matches the record: the upgrade entry reports no
+	// difference and still stores the upgrade (C-88).
+	unchanged, failure := records.Upgrade(ctx, owner, upgrade.UpgradeRequest{RecordID: record.ID})
+	if failure != nil {
+		t.Fatalf("the upgrade write over an unchanged cluster: %v", failure)
+	}
+	if len(unchanged.Upgrade.Differences) != 0 {
+		t.Fatalf("an unchanged cluster reported %v, want no difference", unchanged.Upgrade.Differences)
+	}
+
+	// The same component keeps its name and stays a dependent, but its declared
+	// range moved to one that still admits the served version and still excludes
+	// every target version. The record's basis changed and the entry must say so.
+	cluster.UpgradePackage(t, strandedComponent, frameworkDeclaration(strandedIdentifier, ">=1.1 <2.0"), artifacts)
+	changed, failure := records.Upgrade(ctx, owner, upgrade.UpgradeRequest{RecordID: record.ID})
+	if failure != nil {
+		t.Fatalf("the upgrade write over a changed declaration: %v", failure)
+	}
+	if len(changed.Upgrade.Differences) == 0 {
+		t.Fatal("a changed dependent declaration was not reported as a difference")
+	}
+	joined := strings.Join(changed.Upgrade.Differences, "\n")
+	if !strings.Contains(joined, ">=1.0 <2.0") || !strings.Contains(joined, ">=1.1 <2.0") {
+		t.Fatalf("the difference %q does not name both declared ranges", joined)
+	}
+	if stored := findRecord(t, records, record.ID); stored.Upgrade == nil || len(stored.Upgrade.Differences) == 0 {
+		t.Fatal("the stored record lost the difference")
+	}
+}
+
+// clearPackageReference blanks one component's package reference, the way a
+// user edit does before the next install pass.
+func clearPackageReference(t *testing.T, cluster *harness.Cluster, name string) {
+	t.Helper()
+	resource := cluster.Dynamic.Resource(schema.GroupVersionResource{
+		Group: api.Group, Version: v1beta1.GroupVersion.Version, Resource: "systemcomponents",
+	})
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	object, err := resource.Get(ctx, name, metav1.GetOptions{})
+	if err != nil {
+		t.Fatalf("read component %s: %v", name, err)
+	}
+	if err := unstructured.SetNestedField(object.Object, "", "spec", "package", "reference"); err != nil {
+		t.Fatalf("clear the package reference of %s: %v", name, err)
+	}
+	if _, err := resource.Update(ctx, object, metav1.UpdateOptions{}); err != nil {
+		t.Fatalf("update component %s: %v", name, err)
+	}
+}
+
 // createNode writes one schedulable node that reports its kubelet version.
 func createNode(t *testing.T, cluster *harness.Cluster, name, version string) {
 	t.Helper()
@@ -285,6 +592,82 @@ func createNode(t *testing.T, cluster *harness.Cluster, name, version string) {
 		"metadata":   map[string]any{"name": name},
 		"status":     map[string]any{"nodeInfo": map[string]any{"kubeletVersion": version}},
 	})
+}
+
+// frameworkDeclaration declares one extension whose target framework range is
+// what the upgrade preflight judges against the release's target set (C-16).
+func frameworkDeclaration(identifier, frameworkVersion string) extension.Declaration {
+	return extension.Declaration{
+		Identifier:       identifier,
+		Version:          "1.0.0",
+		FrameworkVersion: frameworkVersion,
+		Contributions: extension.Contributions{
+			Settings: []extension.Setting{{
+				ID: identifier + "-endpoint", Scope: extension.SettingScopeCluster, Writer: extension.SettingWriterUser,
+			}},
+		},
+	}
+}
+
+// preflightOf builds one platform preflight against the case's node.
+func preflightOf(version string, frameworkTargets []string) upgrade.PreflightRequest {
+	return upgrade.PreflightRequest{
+		Kind:             upgrade.KindPlatform,
+		TargetVersion:    version,
+		FrameworkTargets: frameworkTargets,
+		Downtime:         downtime,
+		Nodes:            []string{nodeName},
+	}
+}
+
+// recordsOver wires the record service over the case's cluster and identity
+// store, with the real extension installer judging the framework axis.
+func recordsOver(cluster *harness.Cluster, surface *harness.Identity, artifacts extension.MemoryArtifacts) *upgrade.Service {
+	flow := &upgrade.Flow{
+		Maintenance: &maintenance.Service{
+			Dynamic: cluster.Dynamic,
+			Writer:  cluster.Writer(),
+			Pods:    maintenance.Cluster{Kube: cluster.Kube},
+			Auditor: surface.Trail,
+		},
+		Applications: upgrade.ClusterApplications{Dynamic: cluster.Dynamic},
+		Nodes:        upgrade.ClusterNodes{Dynamic: cluster.Dynamic},
+	}
+	return upgrade.New(upgrade.Config{
+		Store:      surface.Store,
+		Platform:   flow,
+		Frameworks: cluster.ExtensionInstaller(artifacts),
+		Auditor:    surface.Trail,
+		Now:        surface.Clock.Now,
+	})
+}
+
+// findRecord reads one stored record by identity.
+func findRecord(t *testing.T, service *upgrade.Service, id string) upgrade.Record {
+	t.Helper()
+	for _, record := range storedRecords(t, service) {
+		if record.ID == id {
+			return record
+		}
+	}
+	t.Fatalf("record %s is not stored", id)
+	return upgrade.Record{}
+}
+
+// countRecords reads how many records the control plane stores.
+func countRecords(t *testing.T, service *upgrade.Service) int {
+	t.Helper()
+	return len(storedRecords(t, service))
+}
+
+// storedRecords reads every stored record.
+func storedRecords(t *testing.T, service *upgrade.Service) []upgrade.Record {
+	t.Helper()
+	records, err := service.Records(context.Background())
+	if err != nil {
+		t.Fatalf("read the records: %v", err)
+	}
+	return records
 }
 
 // signInOwner bootstraps the first Owner, replaces its one-time password and
@@ -404,6 +787,24 @@ func stringsOf(t *testing.T, value any) []string {
 			t.Fatalf("list entry is not a string: %v", entry)
 		}
 		items = append(items, text)
+	}
+	return items
+}
+
+// dependentsOf reads one record's framework dependents.
+func dependentsOf(t *testing.T, value any) []map[string]any {
+	t.Helper()
+	raw, ok := value.([]any)
+	if !ok {
+		t.Fatalf("value is not a list: %v", value)
+	}
+	items := make([]map[string]any, 0, len(raw))
+	for _, entry := range raw {
+		item, ok := entry.(map[string]any)
+		if !ok {
+			t.Fatalf("dependent entry is not an object: %v", entry)
+		}
+		items = append(items, item)
 	}
 	return items
 }

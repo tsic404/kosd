@@ -2,6 +2,7 @@ package extension
 
 import (
 	"errors"
+	"fmt"
 	"sort"
 	"strings"
 )
@@ -14,6 +15,18 @@ const FrameworkVersion = "1.1"
 // a fresh slice, so a caller that sorts or edits it cannot race another reader.
 func SupportedFrameworks() []string {
 	return []string{FrameworkVersion}
+}
+
+// IsFrameworkVersion reports whether text names one framework API version as
+// C-16 writes it: a dot-separated number sequence with an optional v prefix.
+// A range or an empty string is not one version.
+func IsFrameworkVersion(text string) bool {
+	trimmed := strings.TrimSpace(text)
+	if trimmed == "" || strings.ContainsAny(trimmed, "<>= \t") {
+		return false
+	}
+	_, err := parseVersion(trimmed)
+	return err == nil
 }
 
 // ReasonCompatible is the reason of FrameworkCompatible=True.
@@ -86,6 +99,11 @@ func PreflightUpgradeFrom(current, target []string, installed []FrameworkDeclara
 	if len(target) == 0 {
 		return FrameworkPreflight{}, errors.New("框架升级至少要给出一个目标版本")
 	}
+	for _, text := range target {
+		if _, err := parseVersion(text); err != nil {
+			return FrameworkPreflight{}, fmt.Errorf("目标框架版本 %q 无法解析：%w", text, err)
+		}
+	}
 	preflight := FrameworkPreflight{
 		Target:  append([]string(nil), target...),
 		Removed: removedVersions(current, target),
@@ -110,16 +128,37 @@ func PreflightUpgradeFrom(current, target []string, installed []FrameworkDeclara
 	return preflight, nil
 }
 
-// removedVersions lists the served versions the upgrade drops.
-func removedVersions(current, target []string) []string {
-	retained := make(map[string]bool, len(target))
-	for _, version := range target {
-		retained[version] = true
+// SameFrameworkVersion reports whether two spellings name one framework API
+// version (C-16): a leading v and trailing zero segments are spelling, so v1.1,
+// 1.1 and 1.1.0 are the same version. Text that names no version matches only
+// itself.
+func SameFrameworkVersion(left, right string) bool {
+	if left == right {
+		return true
 	}
+	leftVersion, leftErr := parseVersion(left)
+	rightVersion, rightErr := parseVersion(right)
+	if leftErr != nil || rightErr != nil {
+		return false
+	}
+	return compareVersions(leftVersion, rightVersion) == 0
+}
+
+// removedVersions lists the served versions the upgrade drops. A target set
+// retains a served version under any of its spellings, so a target written
+// v1.1 or 1.1.0 keeps the served 1.1 (C-16).
+func removedVersions(current, target []string) []string {
 	removed := make([]string, 0, len(current))
-	for _, version := range current {
-		if !retained[version] {
-			removed = append(removed, version)
+	for _, served := range current {
+		retained := false
+		for _, candidate := range target {
+			if SameFrameworkVersion(served, candidate) {
+				retained = true
+				break
+			}
+		}
+		if !retained {
+			removed = append(removed, served)
 		}
 	}
 	return removed

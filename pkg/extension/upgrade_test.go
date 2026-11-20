@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -102,6 +103,102 @@ func TestContributionDiffReportsDroppedPageAndAddedSetting(t *testing.T) {
 	}
 	if got := ContributionDiff(before, after); !reflect.DeepEqual(got, want) {
 		t.Fatalf("diff = %+v, want %+v", got, want)
+	}
+}
+
+// TestInstallerPreflightRefusesUnreadablePackages pins C-16's input: an
+// installed component whose package cannot be fetched or decoded makes the
+// preflight fail instead of dropping it from the dependent set.
+func TestInstallerPreflightRefusesUnreadablePackages(t *testing.T) {
+	artifacts := MemoryArtifacts{}
+	declaration := upgradeDeclaration("demo.kubevirt")
+	declaration.FrameworkVersion = ">=1.0 <2.0"
+	digest := publishUpgradePackage(t, artifacts, "kubevirt", declaration)
+	installer := upgradeInstaller(t, artifacts, upgradeComponent("kubevirt", "kubevirt", digest, managedLabels()))
+	ctx := context.Background()
+
+	readable, err := installer.Preflight(ctx, []string{"2.0"})
+	if err != nil {
+		t.Fatalf("the preflight over a readable package: %v", err)
+	}
+	if !readable.IsBlocked || len(readable.Dependents) != 1 || readable.Dependents[0].Component != "kubevirt" {
+		t.Fatalf("dependents = %+v, blocked = %v, want the installed kubevirt", readable.Dependents, readable.IsBlocked)
+	}
+
+	delete(artifacts, "kubevirt")
+	if _, err := installer.Preflight(ctx, []string{"2.0"}); err == nil {
+		t.Fatal("a preflight over a missing installed package passed")
+	}
+	artifacts["kubevirt"] = []byte("not a package archive")
+	if _, err := installer.Preflight(ctx, []string{"2.0"}); err == nil {
+		t.Fatal("a preflight over a corrupt installed package passed")
+	}
+}
+
+// TestInstallerPreflightRefusesAClearedPackageReference pins the other half of
+// C-16's input: a managed component whose package reference is gone still has
+// a declaration to judge, so the preflight refuses it instead of reporting no
+// dependents. An adopted component carries no package by design (C-17) and
+// stays out of the input.
+func TestInstallerPreflightRefusesAClearedPackageReference(t *testing.T) {
+	artifacts := MemoryArtifacts{}
+	declaration := upgradeDeclaration("demo.kubevirt")
+	declaration.FrameworkVersion = ">=1.0 <2.0"
+	digest := publishUpgradePackage(t, artifacts, "kubevirt", declaration)
+	adopted := upgradeComponent("legacy-catalogue", "", "", map[string]any{
+		markers.AdoptedBy:      "operator",
+		markers.AdoptionReason: "pre-existing",
+	})
+	installer := upgradeInstaller(t, artifacts,
+		upgradeComponent("kubevirt", "kubevirt", digest, managedLabels()), adopted)
+	ctx := context.Background()
+
+	// The adopted component without a package is skipped, so the managed one is
+	// still the only dependent and the preflight answers.
+	readable, err := installer.Preflight(ctx, []string{"2.0"})
+	if err != nil {
+		t.Fatalf("the preflight over a readable package and an adopted component: %v", err)
+	}
+	if len(readable.Dependents) != 1 || readable.Dependents[0].Component != "kubevirt" {
+		t.Fatalf("dependents = %+v, want only the installed kubevirt", readable.Dependents)
+	}
+
+	// Clearing the managed component's reference is not an uninstall: the
+	// install pipeline keeps it registered, so the preflight must refuse rather
+	// than answer with no dependents.
+	editUpgradeComponent(t, installer, "kubevirt", func(object *unstructured.Unstructured) {
+		if err := unstructured.SetNestedField(object.Object, "", "spec", "package", "reference"); err != nil {
+			t.Fatalf("clear the package reference: %v", err)
+		}
+	})
+	if _, err := installer.Preflight(ctx, []string{"2.0"}); err == nil {
+		t.Fatal("a preflight over a managed component with no package reference passed")
+	}
+
+	// Removing the reference field entirely is the same undecidable input.
+	editUpgradeComponent(t, installer, "kubevirt", func(object *unstructured.Unstructured) {
+		unstructured.RemoveNestedField(object.Object, "spec", "package", "reference")
+	})
+	if _, err := installer.Preflight(ctx, []string{"2.0"}); err == nil {
+		t.Fatal("a preflight over a managed component without the reference field passed")
+	}
+}
+
+// editUpgradeComponent rewrites one stored component through the installer's
+// client, the way a user edit reaches the live object.
+func editUpgradeComponent(t *testing.T, installer *Installer, name string, edit func(*unstructured.Unstructured)) {
+	t.Helper()
+	ctx := context.Background()
+	resource := installer.Dynamic.Resource(schema.GroupVersionResource{
+		Group: api.Group, Version: v1beta1.GroupVersion.Version, Resource: "systemcomponents",
+	})
+	object, err := resource.Get(ctx, name, metav1.GetOptions{})
+	if err != nil {
+		t.Fatalf("read component %s: %v", name, err)
+	}
+	edit(object)
+	if _, err := resource.Update(ctx, object, metav1.UpdateOptions{}); err != nil {
+		t.Fatalf("update component %s: %v", name, err)
 	}
 }
 

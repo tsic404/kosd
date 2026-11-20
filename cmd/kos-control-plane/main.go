@@ -277,6 +277,10 @@ func run() error {
 			Applications: upgrade.ClusterApplications{Dynamic: dynamicClient},
 			Nodes:        upgrade.ClusterNodes{Dynamic: dynamicClient},
 		},
+		// The same installer reads the installed extensions' framework
+		// declarations, which the platform preflight judges against the target
+		// release's declared framework API version set (KOSD-C-16).
+		Frameworks: componentInstaller,
 		Extensions: componentInstaller,
 		Installed:  projection,
 		Auditor:    trail,

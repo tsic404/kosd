@@ -331,7 +331,11 @@ func (i *Installer) clearRegistration(ctx context.Context, name string, uid type
 
 // Preflight reads the installed extensions and reports which ones the target
 // framework version set would strand (C-16). The upgrade is blocked while any
-// extension still depends on a removed version.
+// extension still depends on a removed version. A managed component whose
+// package reference is absent, unreadable or cannot be fetched, read or loaded
+// is an error: dropping it from the input would let the caller store a record
+// that claims nothing depends on the removal. Adopted and unmanaged components
+// carry no declaration to judge and stay out (C-17).
 func (i *Installer) Preflight(ctx context.Context, target []string) (FrameworkPreflight, error) {
 	if i.Dynamic == nil || i.Artifacts == nil {
 		return FrameworkPreflight{}, errors.New("preflight needs a dynamic client and an artifact source")
@@ -358,20 +362,25 @@ func (i *Installer) Preflight(ctx context.Context, target []string) (FrameworkPr
 			continue
 		}
 		reference, _, err := unstructured.NestedString(object.Object, "spec", "package", "reference")
-		if err != nil || reference == "" {
-			continue
+		if err != nil {
+			return FrameworkPreflight{}, fmt.Errorf("component %s: read package reference: %w", object.GetName(), err)
+		}
+		if reference == "" {
+			// A cleared reference is not an uninstall: the install pipeline keeps
+			// the component registered while its package stays unverified.
+			return FrameworkPreflight{}, fmt.Errorf("component %s: the managed component declares no package reference", object.GetName())
 		}
 		content, err := i.Artifacts.Fetch(ctx, reference)
 		if err != nil {
-			continue
+			return FrameworkPreflight{}, fmt.Errorf("component %s: fetch package %s: %w", object.GetName(), reference, err)
 		}
 		artifact, err := Read(content)
 		if err != nil {
-			continue
+			return FrameworkPreflight{}, fmt.Errorf("component %s: read package %s: %w", object.GetName(), reference, err)
 		}
 		loaded, err := artifact.Declaration.Load()
 		if err != nil {
-			continue
+			return FrameworkPreflight{}, fmt.Errorf("component %s: load the declaration of %s: %w", object.GetName(), reference, err)
 		}
 		installed = append(installed, FrameworkDeclaration{
 			Component:        object.GetName(),
