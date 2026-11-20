@@ -314,6 +314,18 @@ func (s *Service) declared() Declarations {
 	return s.declarations
 }
 
+// declaredPage resolves one page without a session role, which is what the
+// write refusal before session determination needs for its read-only reason
+// (KOSD-C-89).
+func (s *Service) declaredPage(id string) (extension.Page, bool) {
+	for _, page := range s.declared().Pages() {
+		if page.ID == id {
+			return page, true
+		}
+	}
+	return extension.Page{}, false
+}
+
 // emptyDeclarations is the projection of a shell with no active component.
 type emptyDeclarations struct{}
 

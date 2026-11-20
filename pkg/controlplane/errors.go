@@ -97,6 +97,9 @@ const (
 	// CodeReadOnly marks a write refused because the cluster lost its write
 	// quorum and serves read-only (C-56).
 	CodeReadOnly = "read_only"
+	// CodePageReadOnly marks a write refused on a page read route: the page
+	// surface itself is read-only (KOSD-C-89).
+	CodePageReadOnly = "page_read_only"
 	// CodeStorageFull marks a volume refused because the backing disk is full
 	// (C-56).
 	CodeStorageFull = "storage_full"
@@ -152,6 +155,8 @@ func (e *Error) status() int {
 		return http.StatusForbidden
 	case CodeAccountLocked:
 		return http.StatusLocked
+	case CodePageReadOnly:
+		return http.StatusMethodNotAllowed
 	case CodeCapabilityMissing:
 		return http.StatusUnprocessableEntity
 	case CodeObjectExists, CodeConflict, CodeAccountExists, CodeLastOwner, CodeAccountHasObjects:

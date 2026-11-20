@@ -101,8 +101,18 @@ func startIdentity(t *testing.T, owned identity.OwnedObjects, configure func(*id
 
 // Serve mounts the account surface in front of next.
 func (i *Identity) Serve(t *testing.T, next http.Handler) {
+	i.ServeWith(t, nil, next)
+}
+
+// ServeWith mounts the account surface in front of next after wrap, so a
+// surface that must answer before session determination can sit outside it.
+func (i *Identity) ServeWith(t *testing.T, wrap func(http.Handler) http.Handler, next http.Handler) {
 	t.Helper()
-	server := httptest.NewServer(i.API.Handler(next))
+	handler := i.API.Handler(next)
+	if wrap != nil {
+		handler = wrap(handler)
+	}
+	server := httptest.NewServer(handler)
 	t.Cleanup(server.Close)
 	i.HTTP = &HTTP{URL: server.URL}
 }
