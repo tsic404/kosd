@@ -65,7 +65,17 @@ func TestProcessServesProbeAndGuardsTheAPI(t *testing.T) {
 		t.Fatalf("health = %v, want a measurable protection reporting ok", health)
 	}
 
-	status, body := call(t, address, http.MethodGet, "/api/v1/resources/Application", "")
+	// The page write refusal sits ahead of the account gate, so a write method
+	// on a page read route answers before any session exists (KOSD-C-89).
+	status, body := call(t, address, http.MethodPost, "/api/v1/pages", "")
+	if status != http.StatusMethodNotAllowed {
+		t.Fatalf("a page write = %d %v, want 405", status, body)
+	}
+	if code := errorCode(body); code != controlplane.CodePageReadOnly {
+		t.Fatalf("the page refusal carries %q, want %q", code, controlplane.CodePageReadOnly)
+	}
+
+	status, body = call(t, address, http.MethodGet, "/api/v1/resources/Application", "")
 	if status != http.StatusUnauthorized {
 		t.Fatalf("an unauthenticated resource read = %d %v, want 401", status, body)
 	}

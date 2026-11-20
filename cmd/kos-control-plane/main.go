@@ -309,15 +309,15 @@ func run() error {
 	appsService := apps.New(projection)
 	settingsAPI := settings.NewAPI(settingsService).Handler()
 	catalogueAPI := catalogue.NewAPI(catalogueService).Handler()
-	pagesAPI := pages.NewAPI(pagesService).Handler()
+	pagesAPI := pages.NewAPI(pagesService)
 	appsAPI := apps.NewAPI(appsService).Handler()
 	upgradesAPI := upgrade.NewAPI(upgrades).Handler()
 	shell := http.NewServeMux()
 	shell.Handle("/api/v1/settings", settingsAPI)
 	shell.Handle("/api/v1/settings/", settingsAPI)
 	shell.Handle("/api/v1/catalogue/", catalogueAPI)
-	shell.Handle("/api/v1/pages", pagesAPI)
-	shell.Handle("/api/v1/pages/", pagesAPI)
+	shell.Handle("/api/v1/pages", pagesAPI.Handler())
+	shell.Handle("/api/v1/pages/", pagesAPI.Handler())
 	shell.Handle("/api/v1/apps", appsAPI)
 	shell.Handle("/api/v1/upgrade-preflights", upgradesAPI)
 	shell.Handle("/api/v1/upgrade-preflights/", upgradesAPI)
@@ -328,7 +328,7 @@ func run() error {
 	// exists, so it is served ahead of the account gate (KOSD-C-56, KOSD-C-57).
 	root := http.NewServeMux()
 	root.Handle("GET /api/v1/system/health", domain.Handler())
-	root.Handle("/", accountsAPI)
+	root.Handle("/", pagesAPI.RefuseWrites(accountsAPI))
 	server := &http.Server{Addr: address, Handler: root, ReadHeaderTimeout: 10 * time.Second}
 
 	// One sample before serving keeps the probe answerable from the first

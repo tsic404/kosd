@@ -150,18 +150,18 @@ func (c *Cluster) StartShell(t *testing.T, configure ...func(*panel.Config)) *Sh
 	appsService := apps.New(registry)
 	settingsHandler := settings.NewAPI(settingsService).Handler()
 	catalogueHandler := catalogue.NewAPI(catalogueService).Handler()
-	pagesHandler := pages.NewAPI(pagesService).Handler()
+	pagesAPI := pages.NewAPI(pagesService)
 	appsHandler := apps.NewAPI(appsService).Handler()
 
 	mux := http.NewServeMux()
 	mux.Handle("/api/v1/settings", settingsHandler)
 	mux.Handle("/api/v1/settings/", settingsHandler)
 	mux.Handle("/api/v1/catalogue/", catalogueHandler)
-	mux.Handle("/api/v1/pages", pagesHandler)
-	mux.Handle("/api/v1/pages/", pagesHandler)
+	mux.Handle("/api/v1/pages", pagesAPI.Handler())
+	mux.Handle("/api/v1/pages/", pagesAPI.Handler())
 	mux.Handle("/api/v1/apps", appsHandler)
 	mux.Handle("/", server.Handler())
-	surface.Serve(t, mux)
+	surface.ServeWith(t, pagesAPI.RefuseWrites, mux)
 
 	return &Shell{
 		Cluster:   c,
