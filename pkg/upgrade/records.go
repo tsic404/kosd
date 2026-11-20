@@ -60,6 +60,11 @@ type PreflightRequest struct {
 	Kind Kind `json:"kind"`
 	// TargetVersion is the version the platform upgrade moves the nodes to.
 	TargetVersion string `json:"targetVersion,omitempty"`
+	// FrameworkTargets is the framework API version set the target release
+	// declares it serves (C-16). It sits on the framework API version axis, so
+	// it is never derived from TargetVersion, which names the node version axis.
+	// Empty leaves the record's framework items empty.
+	FrameworkTargets []string `json:"frameworkTargets,omitempty"`
 	// Downtime is the declared estimate of the outage, as Go parses it ("15m").
 	Downtime string `json:"downtime"`
 	// Nodes are the nodes a platform upgrade takes out, in the order it takes
@@ -105,11 +110,31 @@ type ComponentOutcome struct {
 	IsBlocked bool `json:"isBlocked,omitempty"`
 }
 
+// FrameworkDependent is one installed extension that declares a target framework
+// range only the removed framework API versions satisfy; while one exists the
+// upgrade stays blocked (C-16).
+type FrameworkDependent struct {
+	// Component is the installed system component object name.
+	Component string `json:"component"`
+	// Identifier is the extension identity its package declares.
+	Identifier string `json:"identifier,omitempty"`
+	// FrameworkVersion is the declared target range.
+	FrameworkVersion string `json:"frameworkVersion,omitempty"`
+}
+
 // PreflightResult is the result the preflight write records beside the request
 // (C-88).
 type PreflightResult struct {
 	// TargetVersion is the version the preflight judged for.
 	TargetVersion string `json:"targetVersion,omitempty"`
+	// RemovedFrameworkVersions are the framework API versions the target release
+	// stops serving, sorted (C-16). They belong to the framework API version
+	// axis; TargetVersion names the node version axis and is not one of them.
+	RemovedFrameworkVersions []string `json:"removedFrameworkVersions"`
+	// FrameworkDependents are the installed extensions that declare a removed
+	// framework API version and no target one (C-16); the preflight write
+	// computes them from the release declaration and the installed extensions.
+	FrameworkDependents []FrameworkDependent `json:"frameworkDependents"`
 	// DeclaredDowntime is the estimate the Owner submitted.
 	DeclaredDowntime string `json:"declaredDowntime"`
 	// EstimatedDowntime is the estimate the preflight reports. The flow has no
@@ -195,6 +220,13 @@ type PlatformPreflight interface {
 	Preflight(ctx context.Context, request Request) (Report, *controlplane.Error)
 }
 
+// FrameworkPreflight judges one target framework API version set against the
+// installed extensions and reports the versions it removes with the extensions
+// that still declare them (C-16). *extension.Installer implements it.
+type FrameworkPreflight interface {
+	Preflight(ctx context.Context, target []string) (extension.FrameworkPreflight, error)
+}
+
 // ExtensionPreflight evaluates an extension upgrade preflight (C-55).
 // *extension.Installer implements it.
 type ExtensionPreflight interface {
@@ -214,6 +246,9 @@ type Config struct {
 	// Platform evaluates platform upgrade preflights; required for a platform
 	// request.
 	Platform PlatformPreflight
+	// Frameworks evaluates the framework API version axis of a platform preflight
+	// (C-16, C-88); required when the request declares a framework target set.
+	Frameworks FrameworkPreflight
 	// Extensions evaluates extension upgrade preflights; required for an
 	// extension request.
 	Extensions ExtensionPreflight
@@ -233,6 +268,7 @@ type Config struct {
 type Service struct {
 	store      Store
 	platform   PlatformPreflight
+	frameworks FrameworkPreflight
 	extensions ExtensionPreflight
 	installed  Installed
 	auditor    controlplane.Auditor
@@ -245,6 +281,7 @@ func New(config Config) *Service {
 	service := &Service{
 		store:      config.Store,
 		platform:   config.Platform,
+		frameworks: config.Frameworks,
 		extensions: config.Extensions,
 		installed:  config.Installed,
 		auditor:    config.Auditor,
@@ -417,13 +454,15 @@ func (s *Service) platformPreflight(ctx context.Context, request PreflightReques
 		return PreflightResult{}, failure
 	}
 	result := PreflightResult{
-		TargetVersion:        request.TargetVersion,
-		DeclaredDowntime:     request.Downtime,
-		EstimatedDowntime:    request.Downtime,
-		AffectedApplications: []string{},
-		Nodes:                make([]NodeOutcome, 0, len(report.Nodes)),
-		Undetermined:         report.Undetermined,
-		IsBlocked:            report.Blocked,
+		TargetVersion:            request.TargetVersion,
+		RemovedFrameworkVersions: []string{},
+		FrameworkDependents:      []FrameworkDependent{},
+		DeclaredDowntime:         request.Downtime,
+		EstimatedDowntime:        request.Downtime,
+		AffectedApplications:     []string{},
+		Nodes:                    make([]NodeOutcome, 0, len(report.Nodes)),
+		Undetermined:             report.Undetermined,
+		IsBlocked:                report.Blocked,
 	}
 	affected := map[string]bool{}
 	for _, plan := range report.Nodes {
@@ -440,6 +479,16 @@ func (s *Service) platformPreflight(ctx context.Context, request PreflightReques
 		result.AffectedApplications = append(result.AffectedApplications, name)
 	}
 	sort.Strings(result.AffectedApplications)
+	removed, dependents, frameworkBlocked, failure := s.frameworkAxis(ctx, request.FrameworkTargets)
+	if failure != nil {
+		return PreflightResult{}, failure
+	}
+	result.RemovedFrameworkVersions = removed
+	result.FrameworkDependents = dependents
+	// Both preflights can block: the node flow on an item it cannot judge, the
+	// framework axis while an extension depends on a removed version (C-16,
+	// C-88). Neither conclusion clears the other.
+	result.IsBlocked = report.Blocked || frameworkBlocked
 	return result, nil
 }
 
@@ -468,12 +517,14 @@ func (s *Service) extensionPreflight(ctx context.Context, request PreflightReque
 		}
 	}
 	result := PreflightResult{
-		TargetVersion:        request.TargetVersion,
-		DeclaredDowntime:     request.Downtime,
-		EstimatedDowntime:    request.Downtime,
-		AffectedApplications: s.extensionApplications(request.Targets),
-		Components:           make([]ComponentOutcome, 0, len(preflight.Components)),
-		IsBlocked:            preflight.IsBlocked,
+		TargetVersion:            request.TargetVersion,
+		RemovedFrameworkVersions: []string{},
+		FrameworkDependents:      []FrameworkDependent{},
+		DeclaredDowntime:         request.Downtime,
+		EstimatedDowntime:        request.Downtime,
+		AffectedApplications:     s.extensionApplications(request.Targets),
+		Components:               make([]ComponentOutcome, 0, len(preflight.Components)),
+		IsBlocked:                preflight.IsBlocked,
 	}
 	for _, component := range preflight.Components {
 		result.Components = append(result.Components, ComponentOutcome{
@@ -514,6 +565,44 @@ func (s *Service) extensionApplications(targets []Target) []string {
 	return names
 }
 
+// frameworkAxis computes the two C-88 framework items from the target release's
+// declared framework API version set and the installed extensions' declared
+// ranges (C-16), and reports whether that axis blocks the upgrade. A request
+// that declares no target set moves nothing on that axis, so both items are
+// empty rather than derived from the node version.
+func (s *Service) frameworkAxis(ctx context.Context, target []string) ([]string, []FrameworkDependent, bool, *controlplane.Error) {
+	removed := []string{}
+	dependents := []FrameworkDependent{}
+	if len(target) == 0 {
+		return removed, dependents, false, nil
+	}
+	if s.frameworks == nil {
+		return nil, nil, false, capabilityMissing("控制面没有接入框架 API 版本预检")
+	}
+	preflight, err := s.frameworks.Preflight(ctx, target)
+	if err != nil {
+		return nil, nil, false, &controlplane.Error{
+			Code:        controlplane.CodeClusterUnavailable,
+			Message:     "无法判定被移除的框架 API 版本与依赖者：" + err.Error(),
+			Stage:       controlplane.StageRead,
+			Retryable:   true,
+			SideEffects: controlplane.SideEffectsNone,
+		}
+	}
+	removed = append(removed, preflight.Removed...)
+	sort.Strings(removed)
+	for _, dependent := range preflight.Dependents {
+		dependents = append(dependents, FrameworkDependent{
+			Component:        dependent.Component,
+			Identifier:       dependent.Identifier,
+			FrameworkVersion: dependent.FrameworkVersion,
+		})
+	}
+	// A listed dependent always blocks (C-16); the provider may also report a
+	// block for a reason outside the list.
+	return removed, dependents, preflight.IsBlocked || len(dependents) > 0, nil
+}
+
 // differences compares one stored record with the cluster as it stands now
 // (C-88). A preflight that cannot be re-read is reported as uncompared rather
 // than failing the upgrade: the comparison never blocks the entry.
@@ -529,6 +618,14 @@ func (s *Service) differences(ctx context.Context, record Record) []string {
 // one. An unchanged cluster yields nil.
 func comparePreflight(stored, fresh PreflightResult) []string {
 	differences := make([]string, 0)
+	if !equalStrings(stored.RemovedFrameworkVersions, fresh.RemovedFrameworkVersions) {
+		differences = append(differences, "被移除的框架 API 版本由 ["+strings.Join(stored.RemovedFrameworkVersions, ", ")+
+			"] 变为 ["+strings.Join(fresh.RemovedFrameworkVersions, ", ")+"]")
+	}
+	if before, after := frameworkDependentDeclarations(stored.FrameworkDependents), frameworkDependentDeclarations(fresh.FrameworkDependents); !equalStrings(before, after) {
+		differences = append(differences, "声明依赖被移除框架 API 版本的扩展由 ["+
+			strings.Join(before, ", ")+"] 变为 ["+strings.Join(after, ", ")+"]")
+	}
 	if !equalStrings(stored.AffectedApplications, fresh.AffectedApplications) {
 		differences = append(differences, "受影响应用由 ["+strings.Join(stored.AffectedApplications, ", ")+
 			"] 变为 ["+strings.Join(fresh.AffectedApplications, ", ")+"]")
@@ -579,6 +676,20 @@ func comparePreflight(stored, fresh PreflightResult) []string {
 		return nil
 	}
 	return differences
+}
+
+// frameworkDependentDeclarations renders each stranded extension's full
+// declaration — component, identity and target range — sorted, so a difference
+// reports a changed range on the same component and stays independent of the
+// order the preflight listed them in (C-88).
+func frameworkDependentDeclarations(dependents []FrameworkDependent) []string {
+	declarations := make([]string, 0, len(dependents))
+	for _, dependent := range dependents {
+		declarations = append(declarations, dependent.Component+
+			" ("+dependent.Identifier+" 声明 "+dependent.FrameworkVersion+")")
+	}
+	sort.Strings(declarations)
+	return declarations
 }
 
 // applicationsByNode indexes each node's affected applications.
@@ -716,9 +827,17 @@ func normalizePreflight(request PreflightRequest) (PreflightRequest, *controlpla
 			return PreflightRequest{}, failure
 		}
 		request.Nodes = nodes
+		targets, failure := normalizeFrameworkTargets(request.FrameworkTargets)
+		if failure != nil {
+			return PreflightRequest{}, failure
+		}
+		request.FrameworkTargets = targets
 	case KindExtension:
 		if len(request.Nodes) > 0 {
 			return PreflightRequest{}, invalidField("扩展升级预检不接受节点")
+		}
+		if len(request.FrameworkTargets) > 0 {
+			return PreflightRequest{}, invalidField("扩展升级预检不接受框架 API 目标版本")
 		}
 		targets, failure := normalizeTargets(request.Targets)
 		if failure != nil {
@@ -788,6 +907,31 @@ func normalizeTargets(targets []Target) ([]Target, *controlplane.Error) {
 		normalized = append(normalized, target)
 	}
 	sort.Slice(normalized, func(left, right int) bool { return normalized[left].Component < normalized[right].Component })
+	return normalized, nil
+}
+
+// normalizeFrameworkTargets validates the framework API version set a release
+// declares it serves after the upgrade (C-16). Equivalent spellings of one
+// version count as a duplicate, and the set is sorted, so the same request
+// submitted in another order keeps one record.
+func normalizeFrameworkTargets(targets []string) ([]string, *controlplane.Error) {
+	if len(targets) == 0 {
+		return nil, nil
+	}
+	normalized := make([]string, 0, len(targets))
+	for _, target := range targets {
+		target = strings.TrimSpace(target)
+		if !extension.IsFrameworkVersion(target) {
+			return nil, invalidField("框架 API 目标版本无效：" + target)
+		}
+		for _, listed := range normalized {
+			if extension.SameFrameworkVersion(listed, target) {
+				return nil, invalidField("框架 API 目标版本 " + target + " 与 " + listed + " 是同一个版本")
+			}
+		}
+		normalized = append(normalized, target)
+	}
+	sort.Strings(normalized)
 	return normalized, nil
 }
 

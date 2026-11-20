@@ -5,6 +5,7 @@ import (
 	"errors"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -58,6 +59,26 @@ func (s *extensionStub) UpgradePreflight(_ context.Context, targets []extension.
 	s.targets = targets
 	if s.failure != nil {
 		return extension.UpgradePreflight{}, s.failure
+	}
+	return s.preflight, nil
+}
+
+// frameworkStub answers the framework API version preflight (C-16).
+type frameworkStub struct {
+	// preflight is the answer; failure is returned instead when set.
+	preflight extension.FrameworkPreflight
+	failure   error
+	// targets is the last target set the domain submitted and calls counts the
+	// submissions, so a case can tell whether the axis was consulted.
+	targets []string
+	calls   int
+}
+
+func (s *frameworkStub) Preflight(_ context.Context, target []string) (extension.FrameworkPreflight, error) {
+	s.calls++
+	s.targets = target
+	if s.failure != nil {
+		return extension.FrameworkPreflight{}, s.failure
 	}
 	return s.preflight, nil
 }
@@ -153,6 +174,144 @@ func TestPreflightKeepsOneRecordPerRequest(t *testing.T) {
 	aged := recordsOf(t, service)
 	if !aged[0].Stale || !aged[1].Stale {
 		t.Fatalf("records observed beyond the bound read stale=%v/%v, want true", aged[0].Stale, aged[1].Stale)
+	}
+}
+
+// TestPlatformPreflightRecordsFrameworkDependents pins C-88's two framework
+// items: the preflight write stores the removed framework API versions with the
+// installed extensions that depend on them, on the framework API version axis
+// beside the node version TargetVersion names. A request that declares no
+// framework target set moves nothing on that axis and keeps both items empty.
+func TestPlatformPreflightRecordsFrameworkDependents(t *testing.T) {
+	ctx := context.Background()
+	platform := &platformStub{reports: []upgrade.Report{{Nodes: []upgrade.NodePlan{{Node: "node-a"}}}}}
+	frameworks := &frameworkStub{preflight: extension.FrameworkPreflight{
+		Target:  []string{"2.0"},
+		Removed: []string{"1.0", "1.1"},
+		Dependents: []extension.FrameworkDependent{{
+			Component: "kubevirt", Identifier: "thirdparty.kubevirt", FrameworkVersion: ">=1.0 <2.0",
+		}},
+		IsBlocked: true,
+	}}
+	service := upgrade.New(upgrade.Config{Store: openStore(t), Platform: platform, Frameworks: frameworks})
+
+	request := platformRequest("v1.38.0")
+	request.FrameworkTargets = []string{"2.0"}
+	record, failure := service.Preflight(ctx, ownerSession, request)
+	if failure != nil {
+		t.Fatalf("the preflight: %v", failure)
+	}
+	if got := record.Result.RemovedFrameworkVersions; !reflect.DeepEqual(got, []string{"1.0", "1.1"}) {
+		t.Fatalf("removed framework API versions = %v, want the removed set", got)
+	}
+	if record.Result.TargetVersion != "v1.38.0" {
+		t.Fatalf("record target version = %q, want the node version", record.Result.TargetVersion)
+	}
+	want := upgrade.FrameworkDependent{Component: "kubevirt", Identifier: "thirdparty.kubevirt", FrameworkVersion: ">=1.0 <2.0"}
+	if len(record.Result.FrameworkDependents) != 1 || record.Result.FrameworkDependents[0] != want {
+		t.Fatalf("framework dependents = %v, want the stranded extension %+v", record.Result.FrameworkDependents, want)
+	}
+	if !record.Result.IsBlocked {
+		t.Fatal("a record with a framework dependent is not blocked")
+	}
+	if !reflect.DeepEqual(frameworks.targets, []string{"2.0"}) {
+		t.Fatalf("framework targets = %v, want the declared target set", frameworks.targets)
+	}
+
+	undeclared, failure := service.Preflight(ctx, ownerSession, platformRequest("v1.40.0"))
+	if failure != nil {
+		t.Fatalf("the preflight without a declared framework target: %v", failure)
+	}
+	if len(undeclared.Result.RemovedFrameworkVersions) != 0 || len(undeclared.Result.FrameworkDependents) != 0 {
+		t.Fatalf("a preflight without a declared target recorded %v/%v, want both empty",
+			undeclared.Result.RemovedFrameworkVersions, undeclared.Result.FrameworkDependents)
+	}
+	if frameworks.calls != 1 {
+		t.Fatalf("the framework axis was consulted %d times, want only for the declared request", frameworks.calls)
+	}
+}
+
+// TestPlatformPreflightMergesFrameworkBlocking pins C-88's single isBlocked:
+// a framework dependent blocks the stored record beside the node preflight's
+// own verdict, a cleared dependency stops blocking, and a node item the flow
+// cannot judge keeps the record blocked while the framework axis is clear.
+func TestPlatformPreflightMergesFrameworkBlocking(t *testing.T) {
+	ctx := context.Background()
+	platform := &platformStub{reports: []upgrade.Report{
+		{Nodes: []upgrade.NodePlan{{Node: "node-a"}}},
+		{Nodes: []upgrade.NodePlan{{Node: "node-a"}}},
+		{
+			Nodes:        []upgrade.NodePlan{{Node: "node-a"}},
+			Undetermined: []string{"卷 apps/data 没有记录数据所在节点"},
+			Blocked:      true,
+		},
+	}}
+	frameworks := &frameworkStub{preflight: extension.FrameworkPreflight{
+		Target:  []string{"2.0"},
+		Removed: []string{"1.1"},
+		Dependents: []extension.FrameworkDependent{{
+			Component: "kubevirt", Identifier: "thirdparty.kubevirt", FrameworkVersion: ">=1.0 <2.0",
+		}},
+		IsBlocked: true,
+	}}
+	service := upgrade.New(upgrade.Config{Store: openStore(t), Platform: platform, Frameworks: frameworks})
+
+	blocked := platformRequest("v1.38.0")
+	blocked.FrameworkTargets = []string{"2.0"}
+	record, failure := service.Preflight(ctx, ownerSession, blocked)
+	if failure != nil {
+		t.Fatalf("the preflight over a stranded extension: %v", failure)
+	}
+	if !record.Result.IsBlocked {
+		t.Fatalf("record isBlocked = %v with dependents %v, want true", record.Result.IsBlocked, record.Result.FrameworkDependents)
+	}
+	if stored := recordsOf(t, service)[0]; !stored.Result.IsBlocked {
+		t.Fatal("the stored record lost the framework block")
+	}
+
+	// Releasing the dependency clears the block on a later preflight.
+	frameworks.preflight = extension.FrameworkPreflight{Target: []string{"2.0"}}
+	cleared := platformRequest("v1.39.0")
+	cleared.FrameworkTargets = []string{"2.0"}
+	released, failure := service.Preflight(ctx, ownerSession, cleared)
+	if failure != nil {
+		t.Fatalf("the preflight after the dependency left: %v", failure)
+	}
+	if released.Result.IsBlocked || len(released.Result.FrameworkDependents) != 0 {
+		t.Fatalf("the record is still blocked: %+v", released.Result)
+	}
+
+	// A node preflight that blocks on its own keeps its verdict; the clear
+	// framework axis does not overwrite it.
+	own := platformRequest("v1.40.0")
+	own.FrameworkTargets = []string{"2.0"}
+	nodeBlocked, failure := service.Preflight(ctx, ownerSession, own)
+	if failure != nil {
+		t.Fatalf("the preflight over an undetermined node flow: %v", failure)
+	}
+	if !nodeBlocked.Result.IsBlocked || len(nodeBlocked.Result.Undetermined) == 0 {
+		t.Fatalf("the node preflight's own block was lost: blocked=%v undetermined=%v",
+			nodeBlocked.Result.IsBlocked, nodeBlocked.Result.Undetermined)
+	}
+}
+
+// TestPlatformPreflightRefusesAnUnreadableFrameworkAxis checks that a preflight
+// which cannot judge the framework axis stores no record rather than one that
+// claims nothing is removed (C-88).
+func TestPlatformPreflightRefusesAnUnreadableFrameworkAxis(t *testing.T) {
+	ctx := context.Background()
+	platform := &platformStub{reports: []upgrade.Report{{Nodes: []upgrade.NodePlan{{Node: "node-a"}}}}}
+	broken := &frameworkStub{failure: errors.New("list system components: cluster unreachable")}
+	service := upgrade.New(upgrade.Config{Store: openStore(t), Platform: platform, Frameworks: broken})
+
+	request := platformRequest("v1.38.0")
+	request.FrameworkTargets = []string{"2.0"}
+	_, failure := service.Preflight(ctx, ownerSession, request)
+	if failure == nil || failure.Code != controlplane.CodeClusterUnavailable {
+		t.Fatalf("a preflight over an unreadable framework axis = %v, want %q", failure, controlplane.CodeClusterUnavailable)
+	}
+	if records := recordsOf(t, service); len(records) != 0 {
+		t.Fatalf("the refused preflight left %d records, want none", len(records))
 	}
 }
 
@@ -272,6 +431,58 @@ func TestUpgradeComparesTheRecordWithTheCluster(t *testing.T) {
 	}
 	if len(uncompared.Upgrade.Differences) == 0 {
 		t.Fatal("an unreadable cluster was not recorded as uncompared")
+	}
+}
+
+// TestUpgradeReportsAChangedDependentDeclaration pins C-88's comparison of the
+// framework axis: a stranded extension whose recorded target range changed is a
+// difference the upgrade entry reports, even though its component name, the
+// removed set and the block stayed the same. An unchanged declaration yields
+// none.
+func TestUpgradeReportsAChangedDependentDeclaration(t *testing.T) {
+	ctx := context.Background()
+	platform := &platformStub{reports: []upgrade.Report{
+		{Nodes: []upgrade.NodePlan{{Node: "node-a"}}},
+		{Nodes: []upgrade.NodePlan{{Node: "node-a"}}},
+	}}
+	frameworks := &frameworkStub{preflight: extension.FrameworkPreflight{
+		Target:  []string{"2.0"},
+		Removed: []string{"1.1"},
+		Dependents: []extension.FrameworkDependent{{
+			Component: "kubevirt", Identifier: "thirdparty.kubevirt", FrameworkVersion: ">=1.0 <2.0",
+		}},
+		IsBlocked: true,
+	}}
+	service := upgrade.New(upgrade.Config{Store: openStore(t), Platform: platform, Frameworks: frameworks})
+	request := platformRequest("v1.38.0")
+	request.FrameworkTargets = []string{"2.0"}
+	record, failure := service.Preflight(ctx, ownerSession, request)
+	if failure != nil {
+		t.Fatalf("the preflight: %v", failure)
+	}
+
+	// The same declaration reports no difference.
+	unchanged, failure := service.Upgrade(ctx, ownerSession, upgrade.UpgradeRequest{RecordID: record.ID})
+	if failure != nil {
+		t.Fatalf("the upgrade write over an unchanged declaration: %v", failure)
+	}
+	if len(unchanged.Upgrade.Differences) != 0 {
+		t.Fatalf("an unchanged dependent declaration reported %v, want no difference", unchanged.Upgrade.Differences)
+	}
+
+	// The component keeps its name and stays a dependent, but its declared
+	// range moved: the recorded basis changed and must be reported.
+	frameworks.preflight.Dependents[0].FrameworkVersion = ">=1.1 <2.0"
+	changed, failure := service.Upgrade(ctx, ownerSession, upgrade.UpgradeRequest{RecordID: record.ID})
+	if failure != nil {
+		t.Fatalf("the upgrade write over a changed declaration: %v", failure)
+	}
+	if len(changed.Upgrade.Differences) == 0 {
+		t.Fatal("a changed dependent declaration was not reported as a difference")
+	}
+	joined := strings.Join(changed.Upgrade.Differences, "\n")
+	if !strings.Contains(joined, ">=1.0 <2.0") || !strings.Contains(joined, ">=1.1 <2.0") {
+		t.Fatalf("the difference %q does not name both declared ranges", joined)
 	}
 }
 

@@ -1,6 +1,7 @@
 package extension
 
 import (
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -85,6 +86,37 @@ func TestPreflightUpgradeBlocksOnlyStrandedExtensions(t *testing.T) {
 	}
 	if _, err := PreflightUpgradeFrom([]string{"1.1"}, nil, installed); err == nil {
 		t.Fatal("a preflight with no target version passed")
+	}
+}
+
+// TestPreflightUpgradeComparesVersionSpellingsAsOneVersion pins C-16's version
+// equality: a target written v1.1 or 1.1.0 keeps the served 1.1, so nothing is
+// removed, while a real move still removes it.
+func TestPreflightUpgradeComparesVersionSpellingsAsOneVersion(t *testing.T) {
+	cases := []struct {
+		name   string
+		target []string
+		remove []string
+	}{
+		{name: "v prefix", target: []string{"v1.1"}, remove: []string{}},
+		{name: "trailing zero", target: []string{"1.1.0"}, remove: []string{}},
+		{name: "short spelling", target: []string{"1.1.0.0"}, remove: []string{}},
+		{name: "moved", target: []string{"2.0"}, remove: []string{"1.1"}},
+		{name: "moved with a v prefix", target: []string{"v2.0"}, remove: []string{"1.1"}},
+	}
+	for _, test := range cases {
+		t.Run(test.name, func(t *testing.T) {
+			preflight, err := PreflightUpgradeFrom([]string{"1.1"}, test.target, nil)
+			if err != nil {
+				t.Fatalf("preflight: %v", err)
+			}
+			if !reflect.DeepEqual(preflight.Removed, test.remove) {
+				t.Fatalf("removed = %v, want %v", preflight.Removed, test.remove)
+			}
+		})
+	}
+	if _, err := PreflightUpgradeFrom([]string{"1.1"}, []string{"2.0.0-beta"}, nil); err == nil {
+		t.Fatal("a target that is not a version was accepted")
 	}
 }
 
