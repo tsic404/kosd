@@ -47,7 +47,9 @@ type Reading struct {
 // Readings resolves the current value of a server-source item. Local items
 // never reach it: browser storage is not a control-plane projection (C-53).
 // The session is the caller the page was rendered for, so a reader can judge
-// the same visibility the read path does (C-59).
+// the same visibility the read path does (C-59). A reader that groups the items
+// of one page read calls ReadIdentity on the context it was handed; false means
+// the read is over and nothing may be grouped.
 type Readings interface {
 	// Read returns the value of one declared item.
 	Read(ctx context.Context, session identity.Session, item extension.PageItem) (Reading, *controlplane.Error)
@@ -227,6 +229,10 @@ func (s *Service) Read(ctx context.Context, session identity.Session, id string)
 	if !found {
 		return Page{}, pageNotFound()
 	}
+	// One read, one identity: the caller's context may be shared with another
+	// read in flight, so each item read is handed the identity of this read.
+	ctx, scope := startReadIdentity(ctx)
+	defer scope.end()
 	rendered := Page{
 		ID:             page.ID,
 		Title:          page.Title,
