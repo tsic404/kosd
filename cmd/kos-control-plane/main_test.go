@@ -194,33 +194,11 @@ func writeKubeconfig(t *testing.T, config *rest.Config) string {
 	return path
 }
 
-// processPackage is the system application the process test delivers: one page
-// and one window application in the same artifact (KOSD-AC-72).
-func processPackage() extension.Declaration {
-	return extension.Declaration{
-		Identifier:       "kos-taskmanager",
-		Version:          "0.1.0",
-		FrameworkVersion: ">=1.0 <2.0",
-		Contributions: extension.Contributions{
-			Pages: []extension.Page{{
-				ID: "overview", Title: "概览", Location: "panel",
-				ReadOnly: true, ReadOnlyReason: "只读展示",
-				Items: []extension.PageItem{{
-					ID: "nodes-ready", Label: "节点就绪",
-					Source: extension.PageSourceObject, Reference: "kos-taskmanager/nodes-ready",
-				}},
-			}},
-			Apps: []extension.App{{
-				ID: "kos-taskmanager", Name: "运行视图", Version: "0.1.0",
-				Icon: "https://taskmanager.example/icon.svg", Entry: "https://taskmanager.example/",
-				Window: extension.AppWindow{
-					Width: 1200, Height: 800, MinWidth: 960, MinHeight: 640,
-					Resizable: true, Mode: extension.AppWindowSingle, DefaultState: extension.AppStateNormal,
-				},
-				Permissions: []string{},
-			}},
-		},
-	}
+// processPackage is the extension package the process test delivers: the
+// kos-taskmanager pages and window application the product packs (KOSD-AC-72).
+func processPackage(t *testing.T) extension.Declaration {
+	t.Helper()
+	return harness.TaskmanagerDeclaration(t)
 }
 
 // TestProcessInstallsPackagesFromItsDirectory checks the deployed process shape:
@@ -237,7 +215,13 @@ func TestProcessInstallsPackagesFromItsDirectory(t *testing.T) {
 	}
 
 	packages := t.TempDir()
-	content, digest, err := extension.Pack(processPackage(), nil)
+	// The product's window application names its icon and document inside the
+	// package, so the artifact carries those two asset paths (KOSD-C-73).
+	assets := []extension.Asset{
+		{Path: "assets/index.html", Content: []byte("<!doctype html><title>运行视图</title>")},
+		{Path: "assets/icon.svg", Content: []byte(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"></svg>`)},
+	}
+	content, digest, err := extension.Pack(processPackage(t), assets)
 	if err != nil {
 		t.Fatalf("pack the system application: %v", err)
 	}
@@ -298,6 +282,30 @@ func TestProcessInstallsPackagesFromItsDirectory(t *testing.T) {
 	pages := callWithToken(t, address, http.MethodGet, "/api/v1/pages", token)
 	if !containsItemID(t, pages, "id", "overview") {
 		t.Fatalf("pages = %v, want the package's page", pages)
+	}
+	overview := callWithToken(t, address, http.MethodGet, "/api/v1/pages/overview", token)
+	items := harness.Items(t, overview)
+	if len(items) != 7 {
+		t.Fatalf("overview has %d items, want the seven the package declares", len(items))
+	}
+	origin := itemByID(t, overview, "maintenance-origin")
+	if harness.String(origin, "source") != extension.PageSourceDatabase {
+		t.Fatalf("maintenance origin source = %q, want %q", harness.String(origin, "source"), extension.PageSourceDatabase)
+	}
+	originValue, ok := origin["value"].(map[string]any)
+	if !ok {
+		t.Fatalf("maintenance origin value = %v, want an object", origin["value"])
+	}
+	if nodes, ok := originValue["nodes"].([]any); !ok || len(nodes) != 0 {
+		t.Fatalf("maintenance origin = %v, want no row while every node is schedulable", originValue)
+	}
+	nodesReady := itemByID(t, overview, "nodes-ready")
+	readyValue, ok := nodesReady["value"].(map[string]any)
+	if !ok {
+		t.Fatalf("nodes ready value = %v, want an object", nodesReady["value"])
+	}
+	if readyValue["total"] != float64(0) || readyValue["ready"] != float64(0) {
+		t.Fatalf("nodes ready = %v, want no node in the fresh cluster", readyValue)
 	}
 	apps := callWithToken(t, address, http.MethodGet, "/api/v1/apps", token)
 	if !appWithDigest(t, apps, "kos-taskmanager", digest) {
@@ -438,6 +446,18 @@ func containsItemID(t *testing.T, body map[string]any, field, value string) bool
 		}
 	}
 	return false
+}
+
+// itemByID reads one item off a rendered page.
+func itemByID(t *testing.T, page map[string]any, id string) map[string]any {
+	t.Helper()
+	for _, item := range harness.Items(t, page) {
+		if harness.String(item, "id") == id {
+			return item
+		}
+	}
+	t.Fatalf("page has no item %q", id)
+	return nil
 }
 
 // appWithDigest reports whether the application list carries one application

@@ -305,7 +305,7 @@ func run() error {
 	defer domain.Close()
 
 	settingsService := settings.New(projection, store, settings.Config{Auditor: trail})
-	pagesService := panel.New(projection, panel.Config{Dynamic: dynamicClient, Banners: banner})
+	pagesService := panel.New(projection, panel.Config{Dynamic: dynamicClient, Audit: store, Banners: banner})
 	appsService := apps.New(projection)
 	settingsAPI := settings.NewAPI(settingsService).Handler()
 	catalogueAPI := catalogue.NewAPI(catalogueService).Handler()

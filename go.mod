@@ -5,11 +5,12 @@ go 1.26.0
 require (
 	github.com/prometheus/client_golang v1.24.0
 	github.com/tsic404/kos-diagnostics v0.0.0-20261119100421-a6dfef2c3a62
+	github.com/tsic404/kos-taskmanager v0.0.0-20261123082841-27bc8004826d
 	golang.org/x/crypto v0.58.0
-	k8s.io/api v0.37.1
+	k8s.io/api v0.37.2
 	k8s.io/apiextensions-apiserver v0.37.1
-	k8s.io/apimachinery v0.37.1
-	k8s.io/client-go v0.37.1
+	k8s.io/apimachinery v0.37.2
+	k8s.io/client-go v0.37.2
 	modernc.org/sqlite v1.61.0
 	sigs.k8s.io/controller-runtime v0.25.2
 	sigs.k8s.io/yaml v1.6.0

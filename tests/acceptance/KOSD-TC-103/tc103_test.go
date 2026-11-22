@@ -13,8 +13,9 @@ import (
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
+	taskmanager "github.com/tsic404/kos-taskmanager/app"
+
 	"github.com/tsic404/kosd/api/v1beta1"
-	"github.com/tsic404/kosd/pkg/app/kostaskmanager"
 	"github.com/tsic404/kosd/pkg/controlplane"
 	"github.com/tsic404/kosd/pkg/extension"
 	"github.com/tsic404/kosd/pkg/panel"
@@ -58,86 +59,86 @@ func TestTC103ProjectionsOverAnAppliedApplication(t *testing.T) {
 	writeVolumeStatus(t, cluster, now)
 	writeEndpointStatus(t, cluster, now)
 
-	taskmanagerReadings := &kostaskmanager.Readings{Dynamic: cluster.Dynamic}
 	storageReadings := &kosstorage.Readings{Dynamic: cluster.Dynamic}
 	shell := cluster.StartShell(t, func(config *panel.Config) {
 		config.Products = []panel.Product{
-			{Identifier: kostaskmanager.Identifier, Readings: taskmanagerReadings},
 			{Identifier: kosstorage.Identifier, Readings: storageReadings},
 		}
 	})
-	taskmanagerReadings.Now = shell.Accounts.Clock.Now
 	storageReadings.Now = shell.Accounts.Clock.Now
 	artifacts := extension.MemoryArtifacts{}
-	cluster.InstallPackageWith(t, "taskmanager", kostaskmanager.Declaration(), artifacts, shell.Retention())
+	cluster.InstallPackageWith(t, "taskmanager", harness.TaskmanagerDeclaration(t), artifacts, shell.Retention())
 	installation := cluster.InstallPackageWith(t, "storage", kosstorage.Declaration(), artifacts, shell.Retention())
 	shell.Use(installation)
 	token := shell.SignInOwner(t, ownerName, ownerPassword)
 
-	overview := readPage(t, shell, token, kostaskmanager.PageOverview)
+	overview := readPage(t, shell, token, taskmanager.PageOverview)
 	assertItems(t, overview, map[string]string{
-		kostaskmanager.ItemNodesReady:          extension.PageSourceObject,
-		kostaskmanager.ItemAbnormalObjects:     extension.PageSourceComputed,
-		kostaskmanager.ItemPendingUpgrades:     extension.PageSourceComputed,
-		kostaskmanager.ItemRecentEvents:        extension.PageSourceObject,
-		kostaskmanager.ItemMaintenanceNodes:    extension.PageSourceObject,
-		kostaskmanager.ItemMaintenanceAffected: extension.PageSourceComputed,
+		taskmanager.ItemNodesReady:          extension.PageSourceObject,
+		taskmanager.ItemAbnormalObjects:     extension.PageSourceComputed,
+		taskmanager.ItemPendingUpgrades:     extension.PageSourceComputed,
+		taskmanager.ItemRecentEvents:        extension.PageSourceObject,
+		taskmanager.ItemMaintenanceNodes:    extension.PageSourceObject,
+		taskmanager.ItemMaintenanceOrigin:   extension.PageSourceDatabase,
+		taskmanager.ItemMaintenanceAffected: extension.PageSourceComputed,
 	})
 	if overview["readOnly"] != true || harness.String(overview, "readOnlyReason") == "" {
 		t.Fatalf("overview readOnly = %v reason = %q, want a stated read-only page",
 			overview["readOnly"], harness.String(overview, "readOnlyReason"))
 	}
 
-	nodesReady := itemValue(t, overview, kostaskmanager.ItemNodesReady)
+	nodesReady := itemValue(t, overview, taskmanager.ItemNodesReady)
 	if number(t, nodesReady, "ready") != 1 || number(t, nodesReady, "total") != 1 {
 		t.Fatalf("nodes ready = %v, want one ready node of one", nodesReady)
 	}
-	pending := itemValue(t, overview, kostaskmanager.ItemPendingUpgrades)
+	pending := itemValue(t, overview, taskmanager.ItemPendingUpgrades)
 	if !containsName(t, pending, "pending", application) {
 		t.Fatalf("pending upgrades = %v, want %s behind its definition", pending, application)
 	}
-	events := itemValue(t, overview, kostaskmanager.ItemRecentEvents)
+	events := itemValue(t, overview, taskmanager.ItemRecentEvents)
 	if harness.String(events, "window") != controlplane.EventWindow.String() {
 		t.Fatalf("event window = %q, want %q", harness.String(events, "window"), controlplane.EventWindow.String())
 	}
-	maintenance := itemValue(t, overview, kostaskmanager.ItemMaintenanceAffected)
+	maintenance := itemValue(t, overview, taskmanager.ItemMaintenanceAffected)
 	if nodes, ok := maintenance["nodes"].([]any); ok && len(nodes) != 0 {
 		t.Fatalf("maintenance affected = %v, want none while the node is schedulable", maintenance)
 	}
+	origin := itemValue(t, overview, taskmanager.ItemMaintenanceOrigin)
+	if nodes, ok := origin["nodes"].([]any); !ok || len(nodes) != 0 {
+		t.Fatalf("maintenance origin = %v, want no row while the node is schedulable", origin)
+	}
 
-	applications := readPage(t, shell, token, kostaskmanager.PageApplications)
+	applications := readPage(t, shell, token, taskmanager.PageApplications)
 	assertItems(t, applications, map[string]string{
-		kostaskmanager.ItemInstalled:     extension.PageSourceObject,
-		kostaskmanager.ItemInstallable:   extension.PageSourceComputed,
-		kostaskmanager.ItemResourceUsage: extension.PageSourceMetric,
-		kostaskmanager.ItemStop:          extension.PageSourceObject,
-		kostaskmanager.ItemStart:         extension.PageSourceObject,
-		kostaskmanager.ItemRestart:       extension.PageSourceObject,
-		kostaskmanager.ItemScale:         extension.PageSourceObject,
-		kostaskmanager.ItemResourceSpec:  extension.PageSourceObject,
-		kostaskmanager.ItemUpgrade:       extension.PageSourceObject,
-		kostaskmanager.ItemUninstall:     extension.PageSourceObject,
-		kostaskmanager.ItemReinstall:     extension.PageSourceObject,
+		taskmanager.ItemInstalled:     extension.PageSourceObject,
+		taskmanager.ItemInstallable:   extension.PageSourceComputed,
+		taskmanager.ItemResourceUsage: extension.PageSourceMetric,
+		taskmanager.ItemStop:          extension.PageSourceObject,
+		taskmanager.ItemStart:         extension.PageSourceObject,
+		taskmanager.ItemRestart:       extension.PageSourceObject,
+		taskmanager.ItemScale:         extension.PageSourceObject,
+		taskmanager.ItemResourceSpec:  extension.PageSourceObject,
+		taskmanager.ItemUninstall:     extension.PageSourceObject,
+		taskmanager.ItemReinstall:     extension.PageSourceObject,
 	})
 	assertEntries(t, applications, map[string]string{
-		kostaskmanager.ItemStop:         kostaskmanager.ActionStop,
-		kostaskmanager.ItemStart:        kostaskmanager.ActionStart,
-		kostaskmanager.ItemRestart:      kostaskmanager.ActionRestart,
-		kostaskmanager.ItemScale:        kostaskmanager.ActionScale,
-		kostaskmanager.ItemResourceSpec: kostaskmanager.ActionResourceSpec,
-		kostaskmanager.ItemUpgrade:      kostaskmanager.ActionUpgrade,
-		kostaskmanager.ItemUninstall:    kostaskmanager.ActionUninstall,
-		kostaskmanager.ItemReinstall:    kostaskmanager.ActionReinstall,
+		taskmanager.ItemStop:         taskmanager.ActionStop,
+		taskmanager.ItemStart:        taskmanager.ActionStart,
+		taskmanager.ItemRestart:      taskmanager.ActionRestart,
+		taskmanager.ItemScale:        taskmanager.ActionScale,
+		taskmanager.ItemResourceSpec: taskmanager.ActionResourceSpec,
+		taskmanager.ItemUninstall:    taskmanager.ActionUninstall,
+		taskmanager.ItemReinstall:    taskmanager.ActionReinstall,
 	})
-	installed := itemValue(t, applications, kostaskmanager.ItemInstalled)
+	installed := itemValue(t, applications, taskmanager.ItemInstalled)
 	if !containsName(t, installed, "applications", application) {
 		t.Fatalf("installed applications = %v, want %s", installed, application)
 	}
-	installable := itemValue(t, applications, kostaskmanager.ItemInstallable)
+	installable := itemValue(t, applications, taskmanager.ItemInstallable)
 	if !definitionInstallable(t, installable, definition) {
 		t.Fatalf("installable = %v, want %s installable with its verified capability", installable, definition)
 	}
-	usage := itemValue(t, applications, kostaskmanager.ItemResourceUsage)
+	usage := itemValue(t, applications, taskmanager.ItemResourceUsage)
 	if usage["available"] != false || harness.String(usage, "reason") == "" {
 		t.Fatalf("application usage = %v, want an unavailability with a reason, not a number", usage)
 	}
@@ -279,9 +280,9 @@ func containsName(t *testing.T, value map[string]any, field, name string) bool {
 // definition installable.
 func definitionInstallable(t *testing.T, value map[string]any, name string) bool {
 	t.Helper()
-	raw, ok := value["definitions"].([]any)
+	raw, ok := value["entries"].([]any)
 	if !ok {
-		t.Fatalf("installable has no definitions: %v", value)
+		t.Fatalf("installable has no entries: %v", value)
 	}
 	for _, entry := range raw {
 		object, ok := entry.(map[string]any)
