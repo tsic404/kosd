@@ -14,14 +14,17 @@ import (
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
+	taskmanager "github.com/tsic404/kos-taskmanager/app"
+
+	"github.com/tsic404/kosd/api"
 	"github.com/tsic404/kosd/api/v1beta1"
-	"github.com/tsic404/kosd/pkg/app/kostaskmanager"
 	"github.com/tsic404/kosd/pkg/controlplane"
 	"github.com/tsic404/kosd/pkg/device/kosdevicemanager"
 	"github.com/tsic404/kosd/pkg/diagnostics/kosdiagnostics"
 	"github.com/tsic404/kosd/pkg/endpoint/kosnetwork"
 	"github.com/tsic404/kosd/pkg/extension"
 	"github.com/tsic404/kosd/pkg/extension/kosupdater"
+	"github.com/tsic404/kosd/pkg/identity"
 	"github.com/tsic404/kosd/pkg/panel"
 	"github.com/tsic404/kosd/pkg/volume/kosstorage"
 	"github.com/tsic404/kosd/tests/acceptance/harness"
@@ -110,7 +113,6 @@ func TestTC100EveryPageRendersItsDeclaredItems(t *testing.T) {
 	createEvent(t, cluster, "shop-degraded", now.Add(-5*time.Minute))
 	createEvent(t, cluster, "shop-old", now.Add(-2*time.Hour))
 
-	taskmanagerReadings := &kostaskmanager.Readings{Dynamic: cluster.Dynamic}
 	storageReadings := &kosstorage.Readings{Dynamic: cluster.Dynamic}
 	networkReadings := &kosnetwork.Readings{Dynamic: cluster.Dynamic, Resolver: fixedResolver{}}
 	deviceReadings := &kosdevicemanager.Readings{Dynamic: cluster.Dynamic}
@@ -118,7 +120,6 @@ func TestTC100EveryPageRendersItsDeclaredItems(t *testing.T) {
 	diagnosticsReadings := &kosdiagnostics.Readings{Dynamic: cluster.Dynamic}
 	shell := cluster.StartShell(t, func(config *panel.Config) {
 		config.Products = []panel.Product{
-			{Identifier: kostaskmanager.Identifier, Readings: taskmanagerReadings},
 			{Identifier: kosstorage.Identifier, Readings: storageReadings},
 			{Identifier: kosnetwork.Identifier, Readings: networkReadings},
 			{Identifier: kosdevicemanager.Identifier, Readings: deviceReadings},
@@ -127,7 +128,6 @@ func TestTC100EveryPageRendersItsDeclaredItems(t *testing.T) {
 		}
 	})
 	clock := shell.Accounts.Clock.Now
-	taskmanagerReadings.Now = clock
 	storageReadings.Now = clock
 	networkReadings.Now = clock
 	deviceReadings.Now = clock
@@ -135,7 +135,7 @@ func TestTC100EveryPageRendersItsDeclaredItems(t *testing.T) {
 	diagnosticsReadings.Now = clock
 
 	artifacts := extension.MemoryArtifacts{}
-	cluster.InstallPackageWith(t, "taskmanager", kostaskmanager.Declaration(), artifacts, shell.Retention())
+	cluster.InstallPackageWith(t, "taskmanager", harness.TaskmanagerDeclaration(t), artifacts, shell.Retention())
 	cluster.InstallPackageWith(t, "storage", kosstorage.Declaration(), artifacts, shell.Retention())
 	cluster.InstallPackageWith(t, "network", kosnetwork.Declaration(), artifacts, shell.Retention())
 	cluster.InstallPackageWith(t, "devicemanager", kosdevicemanager.Declaration(), artifacts, shell.Retention())
@@ -147,7 +147,7 @@ func TestTC100EveryPageRendersItsDeclaredItems(t *testing.T) {
 
 	pages := readPages(t, shell, token)
 	for _, id := range []string{
-		kostaskmanager.PageOverview, kostaskmanager.PageApplications, kosstorage.PageStorage,
+		taskmanager.PageOverview, taskmanager.PageApplications, kosstorage.PageStorage,
 		kosnetwork.PageNetwork, kosdevicemanager.PageDevices, kosupdater.PageComponents,
 		kosupdater.PageUpdates, kosdiagnostics.PageDiagnostics,
 	} {
@@ -169,82 +169,96 @@ func TestTC100EveryPageRendersItsDeclaredItems(t *testing.T) {
 // assertOverview checks C-49's overview items.
 func assertOverview(t *testing.T, shell *harness.Shell, token string) {
 	t.Helper()
-	page := readPage(t, shell, token, kostaskmanager.PageOverview)
+	page := readPage(t, shell, token, taskmanager.PageOverview)
 	assertItems(t, page, map[string]string{
-		kostaskmanager.ItemNodesReady:          extension.PageSourceObject,
-		kostaskmanager.ItemAbnormalObjects:     extension.PageSourceComputed,
-		kostaskmanager.ItemPendingUpgrades:     extension.PageSourceComputed,
-		kostaskmanager.ItemRecentEvents:        extension.PageSourceObject,
-		kostaskmanager.ItemMaintenanceNodes:    extension.PageSourceObject,
-		kostaskmanager.ItemMaintenanceAffected: extension.PageSourceComputed,
+		taskmanager.ItemNodesReady:          extension.PageSourceObject,
+		taskmanager.ItemAbnormalObjects:     extension.PageSourceComputed,
+		taskmanager.ItemPendingUpgrades:     extension.PageSourceComputed,
+		taskmanager.ItemRecentEvents:        extension.PageSourceObject,
+		taskmanager.ItemMaintenanceNodes:    extension.PageSourceObject,
+		taskmanager.ItemMaintenanceOrigin:   extension.PageSourceDatabase,
+		taskmanager.ItemMaintenanceAffected: extension.PageSourceComputed,
 	})
 	assertReadOnly(t, page)
-	nodes := valueOf(t, page, kostaskmanager.ItemNodesReady)
+	nodes := valueOf(t, page, taskmanager.ItemNodesReady)
 	if number(t, nodes, "ready") != 1 || number(t, nodes, "total") != 2 {
 		t.Fatalf("nodes ready = %v, want one ready node of two", nodes)
 	}
-	maintenance := valueOf(t, page, kostaskmanager.ItemMaintenanceNodes)
+	maintenance := valueOf(t, page, taskmanager.ItemMaintenanceNodes)
 	if !listHas(t, maintenance, "nodes", maintained) {
 		t.Fatalf("maintenance nodes = %v, want %s", maintenance, maintained)
 	}
-	affected := valueOf(t, page, kostaskmanager.ItemMaintenanceAffected)
+	affected := valueOf(t, page, taskmanager.ItemMaintenanceAffected)
 	if !affectedByNode(t, affected, maintained, application) {
 		t.Fatalf("maintenance affected = %v, want %s on %s", affected, application, maintained)
 	}
-	pending := valueOf(t, page, kostaskmanager.ItemPendingUpgrades)
+	pending := valueOf(t, page, taskmanager.ItemPendingUpgrades)
 	if !listHas(t, pending, "pending", application) || !listHas(t, pending, "pending", brokenApp) {
 		t.Fatalf("pending upgrades = %v, want both applications behind the definition", pending)
 	}
-	events := valueOf(t, page, kostaskmanager.ItemRecentEvents)
+	events := valueOf(t, page, taskmanager.ItemRecentEvents)
 	if harness.String(events, "window") != controlplane.EventWindow.String() {
 		t.Fatalf("event window = %q, want %q", harness.String(events, "window"), controlplane.EventWindow.String())
 	}
 	if count(t, events, "events") != 1 {
 		t.Fatalf("events = %v, want only the event inside the one-hour window", events)
 	}
-	abnormal := valueOf(t, page, kostaskmanager.ItemAbnormalObjects)
+	abnormal := valueOf(t, page, taskmanager.ItemAbnormalObjects)
 	if !listHas(t, abnormal, "objects", brokenApp) || !listHas(t, abnormal, "objects", "restore-1") {
 		t.Fatalf("abnormal objects = %v, want the failed application and restore job", abnormal)
+	}
+	// KOSD-C-82: a directly cordoned node has no accepted maintain record, so
+	// its origin is unplanned; each later write of the pair moves it.
+	if origin := originOf(t, valueOf(t, page, taskmanager.ItemMaintenanceOrigin), maintained); origin != "unplanned" {
+		t.Fatalf("maintenance origin = %q, want unplanned for a node cordoned outside maintenance", origin)
+	}
+	recordMaintenance(t, shell, maintained, controlplane.VerbMaintain)
+	page = readPage(t, shell, token, taskmanager.PageOverview)
+	if origin := originOf(t, valueOf(t, page, taskmanager.ItemMaintenanceOrigin), maintained); origin != "planned" {
+		t.Fatalf("maintenance origin = %q, want planned after an accepted maintain record", origin)
+	}
+	recordMaintenance(t, shell, maintained, controlplane.VerbRestore)
+	page = readPage(t, shell, token, taskmanager.PageOverview)
+	if origin := originOf(t, valueOf(t, page, taskmanager.ItemMaintenanceOrigin), maintained); origin != "unplanned" {
+		t.Fatalf("maintenance origin = %q, want unplanned after the accepted restore", origin)
 	}
 }
 
 // assertApplications checks C-49's and C-66's application page.
 func assertApplications(t *testing.T, shell *harness.Shell, token string) {
 	t.Helper()
-	page := readPage(t, shell, token, kostaskmanager.PageApplications)
+	page := readPage(t, shell, token, taskmanager.PageApplications)
 	assertItems(t, page, map[string]string{
-		kostaskmanager.ItemInstalled:     extension.PageSourceObject,
-		kostaskmanager.ItemInstallable:   extension.PageSourceComputed,
-		kostaskmanager.ItemResourceUsage: extension.PageSourceMetric,
-		kostaskmanager.ItemStop:          extension.PageSourceObject,
-		kostaskmanager.ItemStart:         extension.PageSourceObject,
-		kostaskmanager.ItemRestart:       extension.PageSourceObject,
-		kostaskmanager.ItemScale:         extension.PageSourceObject,
-		kostaskmanager.ItemResourceSpec:  extension.PageSourceObject,
-		kostaskmanager.ItemUpgrade:       extension.PageSourceObject,
-		kostaskmanager.ItemUninstall:     extension.PageSourceObject,
-		kostaskmanager.ItemReinstall:     extension.PageSourceObject,
+		taskmanager.ItemInstalled:     extension.PageSourceObject,
+		taskmanager.ItemInstallable:   extension.PageSourceComputed,
+		taskmanager.ItemResourceUsage: extension.PageSourceMetric,
+		taskmanager.ItemStop:          extension.PageSourceObject,
+		taskmanager.ItemStart:         extension.PageSourceObject,
+		taskmanager.ItemRestart:       extension.PageSourceObject,
+		taskmanager.ItemScale:         extension.PageSourceObject,
+		taskmanager.ItemResourceSpec:  extension.PageSourceObject,
+		taskmanager.ItemUninstall:     extension.PageSourceObject,
+		taskmanager.ItemReinstall:     extension.PageSourceObject,
 	})
-	if len(actionsOf(t, page)) != 8 {
-		t.Fatalf("actions = %v, want the eight lifecycle entries", actionsOf(t, page))
+	if len(actionsOf(t, page)) != 7 {
+		t.Fatalf("actions = %v, want the seven lifecycle entries", actionsOf(t, page))
 	}
 	for id, action := range map[string]string{
-		kostaskmanager.ItemStop:         kostaskmanager.ActionStop,
-		kostaskmanager.ItemStart:        kostaskmanager.ActionStart,
-		kostaskmanager.ItemRestart:      kostaskmanager.ActionRestart,
-		kostaskmanager.ItemScale:        kostaskmanager.ActionScale,
-		kostaskmanager.ItemResourceSpec: kostaskmanager.ActionResourceSpec,
-		kostaskmanager.ItemUpgrade:      kostaskmanager.ActionUpgrade,
-		kostaskmanager.ItemUninstall:    kostaskmanager.ActionUninstall,
-		kostaskmanager.ItemReinstall:    kostaskmanager.ActionReinstall,
+		taskmanager.ItemStop:         taskmanager.ActionStop,
+		taskmanager.ItemStart:        taskmanager.ActionStart,
+		taskmanager.ItemRestart:      taskmanager.ActionRestart,
+		taskmanager.ItemScale:        taskmanager.ActionScale,
+		taskmanager.ItemResourceSpec: taskmanager.ActionResourceSpec,
+		taskmanager.ItemUninstall:    taskmanager.ActionUninstall,
+		taskmanager.ItemReinstall:    taskmanager.ActionReinstall,
 	} {
 		assertEntry(t, page, id, action)
 	}
-	installed := valueOf(t, page, kostaskmanager.ItemInstalled)
+	installed := valueOf(t, page, taskmanager.ItemInstalled)
 	if !listHas(t, installed, "applications", application) {
 		t.Fatalf("installed = %v, want %s", installed, application)
 	}
-	installable := valueOf(t, page, kostaskmanager.ItemInstallable)
+	installable := valueOf(t, page, taskmanager.ItemInstallable)
 	if !installableDefinition(t, installable, definition) {
 		t.Fatalf("installable = %v, want %s installable", installable, definition)
 	}
@@ -254,7 +268,7 @@ func assertApplications(t *testing.T, shell *harness.Shell, token string) {
 	if installableDefinition(t, installable, policyDefinition) {
 		t.Fatalf("installable = %v, want %s blocked by its missing capability", installable, policyDefinition)
 	}
-	usage := valueOf(t, page, kostaskmanager.ItemResourceUsage)
+	usage := valueOf(t, page, taskmanager.ItemResourceUsage)
 	if usage["available"] != false || harness.String(usage, "reason") == "" {
 		t.Fatalf("usage = %v, want an unavailability with a reason", usage)
 	}
@@ -598,6 +612,41 @@ func listHas(t *testing.T, value map[string]any, field, name string) bool {
 	return false
 }
 
+// originOf reads the maintenance origin one node carries (KOSD-C-82).
+func originOf(t *testing.T, value map[string]any, node string) string {
+	t.Helper()
+	raw, ok := value["nodes"].([]any)
+	if !ok {
+		t.Fatalf("origin has no nodes: %v", value)
+	}
+	for _, entry := range raw {
+		object, ok := entry.(map[string]any)
+		if !ok || harness.String(object, "name") != node {
+			continue
+		}
+		return harness.String(object, "origin")
+	}
+	t.Fatalf("origin = %v, want a row for %s", value, node)
+	return ""
+}
+
+// recordMaintenance appends the accepted audit record one maintenance write
+// leaves behind (KOSD-C-14, KOSD-C-82).
+func recordMaintenance(t *testing.T, shell *harness.Shell, node, verb string) {
+	t.Helper()
+	err := shell.Accounts.Store.AppendAudit(context.Background(), identity.AuditEntry{
+		Actor:      ownerName,
+		Object:     controlplane.ObjectRef{Group: api.Group, Kind: "Node", Name: node}.String(),
+		Verb:       verb,
+		Result:     controlplane.ResultAccepted,
+		Source:     controlplane.SourceAPI,
+		OccurredAt: shell.Accounts.Clock.Now(),
+	})
+	if err != nil {
+		t.Fatalf("record %s of %s: %v", verb, node, err)
+	}
+}
+
 // count reads the length of one list field.
 func count(t *testing.T, value map[string]any, field string) int {
 	t.Helper()
@@ -644,9 +693,9 @@ func affectedByNode(t *testing.T, value map[string]any, node, name string) bool 
 // definition installable.
 func installableDefinition(t *testing.T, value map[string]any, name string) bool {
 	t.Helper()
-	raw, ok := value["definitions"].([]any)
+	raw, ok := value["entries"].([]any)
 	if !ok {
-		t.Fatalf("installable has no definitions: %v", value)
+		t.Fatalf("installable has no entries: %v", value)
 	}
 	for _, entry := range raw {
 		object, ok := entry.(map[string]any)

@@ -12,6 +12,7 @@ import (
 	"errors"
 	"net/http"
 	"os"
+	"reflect"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -22,10 +23,10 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
+	taskmanager "github.com/tsic404/kos-taskmanager/app"
 	"github.com/tsic404/kosd/api"
 	"github.com/tsic404/kosd/api/v1beta1"
 	"github.com/tsic404/kosd/pkg/app"
-	"github.com/tsic404/kosd/pkg/app/kostaskmanager"
 	"github.com/tsic404/kosd/pkg/controlplane"
 	"github.com/tsic404/kosd/pkg/extension"
 	"github.com/tsic404/kosd/pkg/identity"
@@ -71,6 +72,8 @@ data:
 const (
 	dependentApplication = "needs"
 	plainApplication     = "plain"
+	dependentVolume      = "needs-data"
+	dependentEndpoint    = "needs-web"
 )
 
 func TestTC88ComponentAndStorageFailures(t *testing.T) {
@@ -122,7 +125,20 @@ func providerCrash(t *testing.T, cluster *harness.Cluster) {
 		t.Fatalf("mark the provider unavailable: %v", err)
 	}
 
-	createApplication(t, cluster, dependentApplication, "dependent")
+	// The dependent application declares a volume and is exposed by an
+	// endpoint: the reinstall has to keep both, so the case needs them to
+	// exist before it submits (KOSD-C-56, KOSD-C-03).
+	cluster.Create(t, harness.Volume(harness.Namespace, dependentVolume, map[string]any{
+		"mobility": string(v1beta1.VolumeMobilityClusterMovable),
+		"capacity": "1Gi",
+	}))
+	cluster.Create(t, harness.Endpoint(dependentEndpoint, harness.ManagedLabels(), map[string]any{
+		"kind":      string(v1beta1.EndpointKindHTTPPath),
+		"targetApp": dependentApplication,
+		"host":      "needs.kos.test",
+		"path":      "/",
+	}))
+	createApplication(t, cluster, dependentApplication, "dependent", dependentVolume)
 	createApplication(t, cluster, plainApplication, "plain")
 	controller := cluster.ApplicationController(t, app.Options{
 		Capabilities: app.StaticCapabilities{{
@@ -156,20 +172,26 @@ func providerCrash(t *testing.T, cluster *harness.Cluster) {
 		t.Fatalf("the crashed provider reinstalled the application: uid %s became %s", before.GetUID(), after.GetUID())
 	}
 
-	// The reinstall entry the page offers is executable: read the page, take
-	// the action identity the item declares, resolve it to the value the API
-	// accepts, submit that through the entry, and observe the action on the
-	// object (C-22, C-56).
-	page := applicationPage(t, cluster)
-	assertPageActionsAccepted(t, page)
-	item, action := pageAction(t, page, kostaskmanager.ItemReinstall)
-	if item.Entry.Method != http.MethodPost || item.Entry.Path != "/api/v1/action-requests" {
-		t.Fatalf("reinstall entry = %s %s, want POST /api/v1/action-requests", item.Entry.Method, item.Entry.Path)
+	// The values the reinstall must keep: the user spec, the volume and the
+	// endpoint the application owns (KOSD-C-56, KOSD-C-03).
+	beforeSpec := applicationSpec(t, cluster, dependentApplication)
+	if volumes, _, err := unstructured.NestedStringSlice(beforeSpec, "volumes"); err != nil || len(volumes) != 1 || volumes[0] != dependentVolume {
+		t.Fatalf("the dependent application declares volumes %v, want [%s]: the retention check would be vacuous", volumes, dependentVolume)
 	}
+	beforeVolume := cluster.Get(t, "v1beta1", "Volume", dependentVolume).GetUID()
+	beforeEndpoint := cluster.Get(t, "v1beta1", "Endpoint", dependentEndpoint).GetUID()
+
+	// KOSD-C-56 names a reinstall entry for a crashed provider, and TASK-C-2
+	// places it on the application page. The case takes the submission from
+	// that declaration: a missing entry or one the endpoint refuses fails here
+	// (C-22, C-56).
+	page := applicationPage(t, cluster)
+	entry := reinstallEntry(t, page)
+	value := controlPlaneAction(t, entry.ID)
 	gateway := cluster.StartControlPlane(t, nil)
-	httpStatus, body := gateway.Call(t, item.Entry.Method, item.Entry.Path, map[string]any{
+	httpStatus, body := gateway.Call(t, entry.Entry.Method, entry.Entry.Path, map[string]any{
 		"kind": "Application", "namespace": harness.Namespace, "name": dependentApplication,
-		"action": action,
+		"action": value,
 	}, nil)
 	if httpStatus != http.StatusAccepted {
 		t.Fatalf("reinstall action: %d %v", httpStatus, body)
@@ -195,82 +217,77 @@ func providerCrash(t *testing.T, cluster *harness.Cluster) {
 	if after := cluster.Workload(t, "Deployment", harness.Namespace, dependentApplication); after.GetUID() != before.GetUID() {
 		t.Fatalf("the reinstall recreated the workload: uid %s became %s", before.GetUID(), after.GetUID())
 	}
+	if afterSpec := applicationSpec(t, cluster, dependentApplication); !reflect.DeepEqual(beforeSpec, afterSpec) {
+		t.Fatalf("the reinstall changed the user spec:\nbefore %v\nafter  %v", beforeSpec, afterSpec)
+	}
+	if uid := cluster.Get(t, "v1beta1", "Volume", dependentVolume).GetUID(); uid != beforeVolume {
+		t.Fatalf("the reinstall recreated the volume: uid %s became %s", beforeVolume, uid)
+	}
+	if uid := cluster.Get(t, "v1beta1", "Endpoint", dependentEndpoint).GetUID(); uid != beforeEndpoint {
+		t.Fatalf("the reinstall recreated the endpoint: uid %s became %s", beforeEndpoint, uid)
+	}
 }
 
 // applicationPage reads the application page the taskmanager declares, as the
 // shell receives it (C-22).
 func applicationPage(t *testing.T, cluster *harness.Cluster) pages.Page {
 	t.Helper()
-	installed := cluster.InstallPackage(t, "taskmanager", kostaskmanager.Declaration(), extension.MemoryArtifacts{})
-	readings := &kostaskmanager.Readings{Dynamic: cluster.Dynamic}
+	installed := cluster.InstallPackage(t, "taskmanager", harness.TaskmanagerDeclaration(t), extension.MemoryArtifacts{})
+	readings := &taskmanager.Readings{Dynamic: cluster.Dynamic}
 	service := pages.New(installed.Registry(), pages.Config{
-		Readings: pages.Router{kostaskmanager.Identifier: readings},
+		Readings: pages.Router{taskmanager.Identifier: readings},
 		Now:      time.Now,
 	})
-	page, failure := service.Read(context.Background(), identity.Session{Username: "owner", Role: write.RoleOwner}, kostaskmanager.PageApplications)
+	page, failure := service.Read(context.Background(), identity.Session{Username: "owner", Role: write.RoleOwner}, taskmanager.PageApplications)
 	if failure != nil {
 		t.Fatalf("read the application page: %v", failure)
 	}
 	return page
 }
 
-// pageAction returns one item and the control-plane action value its page
-// action identity submits. It fails when the item offers no action, when the
-// identity has no control-plane value, and when the API rejects that value, so
-// a page entry the API cannot accept never passes unnoticed (C-22, C-56).
-func pageAction(t *testing.T, page pages.Page, itemID string) (pages.Item, string) {
+// reinstallEntry finds the reinstall control the application page declares and
+// the submission it carries. The user acts on the item, so a page without it
+// has no entry, and an item without a resolved entry submits nothing; both
+// fail here instead of being skipped (C-22, C-56).
+func reinstallEntry(t *testing.T, page pages.Page) pages.Action {
 	t.Helper()
 	for _, item := range page.Items {
-		if item.ID != itemID {
+		if item.ID != taskmanager.ItemReinstall {
 			continue
 		}
-		if item.Action == "" || item.Entry == nil {
-			t.Fatalf("item %q offers no action: %+v", itemID, item)
+		if item.Action != taskmanager.ActionReinstall {
+			t.Fatalf("the reinstall item names action %q, want %q", item.Action, taskmanager.ActionReinstall)
 		}
-		action, known := kostaskmanager.ControlPlaneAction(item.Action)
-		if !known {
-			t.Fatalf("page action %q has no control-plane action", item.Action)
+		if item.Entry == nil || item.Entry.Method == "" || item.Entry.Path == "" {
+			t.Fatalf("the reinstall item resolves no submission: %+v", item)
 		}
-		if !controlplane.AcceptsAction(action) {
-			t.Fatalf("page action %q submits %q, which the API rejects", item.Action, action)
+		for _, action := range page.Actions {
+			if action.ID != taskmanager.ActionReinstall {
+				continue
+			}
+			if action.Entry.Method != item.Entry.Method || action.Entry.Path != item.Entry.Path {
+				t.Fatalf("the reinstall action submits %+v, the item carries %+v", action.Entry, *item.Entry)
+			}
+			return action
 		}
-		return item, action
+		t.Fatalf("the reinstall item names an action the page does not offer")
 	}
-	t.Fatalf("the application page offers no %q item", itemID)
-	return pages.Item{}, ""
+	t.Fatalf("the application page declares no reinstall item")
+	return pages.Action{}
 }
 
-// assertPageActionsAccepted checks every entry that posts to the action
-// endpoint: the page action identity must resolve to a value the API accepts,
-// and the lifecycle entries must be offered at all (C-22, C-56).
-func assertPageActionsAccepted(t *testing.T, page pages.Page) {
+// controlPlaneAction resolves the value the page action identity submits and
+// checks the endpoint accepts it (C-22, C-56).
+func controlPlaneAction(t *testing.T, id string) string {
 	t.Helper()
-	posted := map[string]bool{}
-	for _, action := range page.Actions {
-		if action.Entry.Path != "/api/v1/action-requests" {
-			continue
-		}
-		value, known := kostaskmanager.ControlPlaneAction(action.ID)
-		if !known {
-			t.Errorf("page action %q has no control-plane action", action.ID)
-			continue
-		}
-		if !controlplane.AcceptsAction(value) {
-			t.Errorf("page action %q submits %q, which the API rejects", action.ID, value)
-		}
-		posted[action.ID] = true
+	value, known := taskmanager.ControlPlaneAction(id)
+	if !known {
+		t.Fatalf("page action %q has no control-plane action", id)
 	}
-	for _, id := range []string{
-		kostaskmanager.ActionStop,
-		kostaskmanager.ActionStart,
-		kostaskmanager.ActionRestart,
-		kostaskmanager.ActionScale,
-		kostaskmanager.ActionReinstall,
-	} {
-		if !posted[id] {
-			t.Errorf("the page does not offer %q through the action endpoint", id)
-		}
+	if !controlplane.AcceptsAction(value) {
+		t.Fatalf("page action %q submits %q, which the API rejects", id, value)
 	}
+	return value
 }
 
 // recordOf reads one action record; nil when it is gone.
@@ -585,10 +602,20 @@ func (fullDisk) IsFull(context.Context) (bool, string, error) {
 }
 
 // createApplication writes one application through the native path.
-func createApplication(t *testing.T, cluster *harness.Cluster, name, definition string) {
+func createApplication(t *testing.T, cluster *harness.Cluster, name, definition string, volumes ...string) {
 	t.Helper()
-	manifest := harness.ApplicationManifest(name, harness.Namespace, definition, harness.Namespace, nil, nil)
+	manifest := harness.ApplicationManifest(name, harness.Namespace, definition, harness.Namespace, nil, volumes)
 	cluster.Create(t, &unstructured.Unstructured{Object: manifest})
+}
+
+// applicationSpec reads the stored user spec of one application.
+func applicationSpec(t *testing.T, cluster *harness.Cluster, name string) map[string]any {
+	t.Helper()
+	spec, found, err := unstructured.NestedMap(cluster.Get(t, "v1beta1", "Application", name).Object, "spec")
+	if err != nil || !found {
+		t.Fatalf("read the application spec: found = %v, err = %v", found, err)
+	}
+	return spec
 }
 
 // createExtensionObject writes one extension object with an observed status.

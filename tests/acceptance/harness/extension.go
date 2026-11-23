@@ -2,6 +2,7 @@ package harness
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -9,6 +10,8 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
+
+	taskmanager "github.com/tsic404/kos-taskmanager/app"
 
 	"github.com/tsic404/kosd/api"
 	"github.com/tsic404/kosd/api/v1beta1"
@@ -51,6 +54,22 @@ func (c *Cluster) ExtensionInstaller(artifacts extension.ArtifactSource) *extens
 func (c *Cluster) InstallPackage(t *testing.T, name string, declaration extension.Declaration, artifacts extension.MemoryArtifacts) *extension.Installation {
 	t.Helper()
 	return c.InstallPackageWith(t, name, declaration, artifacts, nil)
+}
+
+// TaskmanagerDeclaration is the declaration the kos-taskmanager repository
+// packs, decoded into the kernel's declaration type. Installing it keeps the
+// cases on the item set the product publishes instead of a copy (KOSD-C-53).
+func TaskmanagerDeclaration(t *testing.T) extension.Declaration {
+	t.Helper()
+	encoded, err := json.Marshal(taskmanager.Declaration())
+	if err != nil {
+		t.Fatalf("encode the kos-taskmanager declaration: %v", err)
+	}
+	declaration, err := extension.Parse(encoded)
+	if err != nil {
+		t.Fatalf("parse the kos-taskmanager declaration: %v", err)
+	}
+	return declaration
 }
 
 // InstallPackageWith creates a component for declaration and runs one install

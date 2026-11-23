@@ -142,7 +142,7 @@ func (c *Cluster) StartShell(t *testing.T, configure ...func(*panel.Config)) *Sh
 	// capability-missing until the case installs the product that owns it
 	// (C-22, C-53). The panel is assembled by the same entry the production
 	// process calls, so the registered readers are the production ones.
-	panelConfig := panel.Config{Dynamic: c.Dynamic, Now: surface.Clock.Now}
+	panelConfig := panel.Config{Dynamic: c.Dynamic, Audit: surface.Store, Now: surface.Clock.Now}
 	for _, apply := range configure {
 		apply(&panelConfig)
 	}
