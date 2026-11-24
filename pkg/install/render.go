@@ -186,14 +186,16 @@ func object(apiVersion, kind, name, namespace string, fields map[string]any) *un
 // clusterRole grants the control plane its cluster-scoped reach: the kernel
 // objects it reconciles and read access to the cluster facts a projection
 // shows. Cluster-scoped writes belong to the install path, never to the
-// control plane (C-04), so namespaces, nodes and volumes stay read-only here.
+// control plane (C-04), so namespaces, nodes, volumes and events stay
+// read-only here. Events are cluster-wide because the overview and the detail
+// page read them across namespaces (C-64).
 func clusterRole(labels map[string]any) *unstructured.Unstructured {
 	return object("rbac.authorization.k8s.io/v1", "ClusterRole", ControlPlaneName, "", map[string]any{
 		"metadata": map[string]any{"labels": labels},
 		"rules": []any{
 			rule([]string{api.Group}, []string{"*"}, []string{"*"}),
 			rule([]string{""}, []string{
-				"namespaces", "nodes", "persistentvolumes", "serviceaccounts",
+				"events", "namespaces", "nodes", "persistentvolumes", "serviceaccounts",
 			}, []string{"get", "list", "watch"}),
 			rule([]string{"apiextensions.k8s.io"}, []string{"customresourcedefinitions"}, []string{"get", "list", "watch"}),
 			rule([]string{"storage.k8s.io"}, []string{"storageclasses"}, []string{"get", "list", "watch"}),
