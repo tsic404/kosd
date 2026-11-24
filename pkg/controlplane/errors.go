@@ -22,6 +22,9 @@ const (
 	StageApply Stage = "apply"
 	// StageRead means reading the cluster failed.
 	StageRead Stage = "read"
+	// StageConnect means establishing or driving a terminal session failed
+	// after the caller was authorized (KOSD-C-90, KOSD-C-93).
+	StageConnect Stage = "connect"
 )
 
 // SideEffects reports whether a failed request left objects behind (C-12).
@@ -103,6 +106,38 @@ const (
 	// CodeStorageFull marks a volume refused because the backing disk is full
 	// (C-56).
 	CodeStorageFull = "storage_full"
+	// CodeTerminalUnauthenticated marks a terminal request without a usable
+	// console session or terminal token (KOSD-C-91).
+	CodeTerminalUnauthenticated = "terminal_unauthenticated"
+	// CodeTerminalForbidden marks a terminal request whose token binding does
+	// not match, or a target list and audit read the caller may not make
+	// (KOSD-C-91, KOSD-C-95, KOSD-C-96).
+	CodeTerminalForbidden = "terminal_forbidden"
+	// CodeTerminalTargetUnavailable marks a terminal target the caller may not
+	// reach or that does not exist; the two cases answer alike (KOSD-C-93).
+	CodeTerminalTargetUnavailable = "terminal_target_unavailable"
+	// CodeTerminalNodeUnreachable marks an authorized node whose execution
+	// service cannot be reached (KOSD-C-93).
+	CodeTerminalNodeUnreachable = "terminal_node_unreachable"
+	// CodeTerminalExecutorUnavailable marks an authorized target whose executor
+	// is not available (KOSD-C-93).
+	CodeTerminalExecutorUnavailable = "terminal_executor_unavailable"
+	// CodeTerminalTargetEnded marks an authorized target that already ended
+	// (KOSD-C-93).
+	CodeTerminalTargetEnded = "terminal_target_ended"
+	// CodeTerminalSessionLimit marks a create beyond the account or target
+	// bound (KOSD-C-94).
+	CodeTerminalSessionLimit = "terminal_session_limit"
+	// CodeTerminalCredentialBoundaryUnavailable marks a target whose credential
+	// boundary cannot be guaranteed (KOSD-C-93, ADR-043).
+	CodeTerminalCredentialBoundaryUnavailable = "terminal_credential_boundary_unavailable"
+	// CodeTerminalAuditUnavailable marks the terminal audit trail being
+	// unavailable for a write or a read (KOSD-C-92, KOSD-C-96).
+	CodeTerminalAuditUnavailable = "terminal_audit_unavailable"
+	// CodeTerminalTargetSourceUnavailable marks the node inventory source
+	// being unavailable, so an empty list would misstate the cluster
+	// (KOSD-C-95).
+	CodeTerminalTargetSourceUnavailable = "terminal_target_source_unavailable"
 )
 
 // Error is the failure envelope every non-2xx response carries (C-12). The
@@ -147,26 +182,45 @@ func (e *Error) status() int {
 	switch e.Code {
 	case CodeInvalidRequest, CodeInvalidField:
 		return http.StatusBadRequest
-	case CodeUnauthenticated, CodeLoginFailed:
+	case CodeUnauthenticated, CodeLoginFailed, CodeTerminalUnauthenticated:
 		return http.StatusUnauthorized
 	case CodeNotFound:
 		return http.StatusNotFound
-	case CodePermissionDenied, CodePasswordChangeRequired, CodeBootstrapClosed:
+	case CodePermissionDenied, CodePasswordChangeRequired, CodeBootstrapClosed,
+		CodeTerminalForbidden, CodeTerminalTargetUnavailable:
 		return http.StatusForbidden
 	case CodeAccountLocked:
 		return http.StatusLocked
+	case CodeTerminalSessionLimit:
+		return http.StatusTooManyRequests
 	case CodePageReadOnly:
 		return http.StatusMethodNotAllowed
 	case CodeCapabilityMissing:
 		return http.StatusUnprocessableEntity
-	case CodeObjectExists, CodeConflict, CodeAccountExists, CodeLastOwner, CodeAccountHasObjects:
+	case CodeObjectExists, CodeConflict, CodeAccountExists, CodeLastOwner, CodeAccountHasObjects,
+		CodeTerminalTargetEnded:
 		return http.StatusConflict
 	case CodeWriteFailed, CodeClusterUnavailable, CodeClusterCredentialsInvalid:
 		return http.StatusBadGateway
-	case CodeDatabaseUnavailable, CodeOwnershipCheckFailed, CodeReadOnly, CodeStorageFull:
+	case CodeDatabaseUnavailable, CodeOwnershipCheckFailed, CodeReadOnly, CodeStorageFull,
+		CodeTerminalNodeUnreachable, CodeTerminalExecutorUnavailable,
+		CodeTerminalCredentialBoundaryUnavailable, CodeTerminalAuditUnavailable,
+		CodeTerminalTargetSourceUnavailable:
 		return http.StatusServiceUnavailable
 	default:
 		return http.StatusInternalServerError
+	}
+}
+
+// terminalFailure builds the terminal failure envelope (KOSD-C-12,
+// KOSD-C-93). A terminal failure is retryable only when repeating the request
+// can help; a capacity, authorization or boundary decision is not.
+func terminalFailure(code string, stage Stage, message string) *Error {
+	return &Error{
+		Code:        code,
+		Message:     message,
+		Stage:       stage,
+		SideEffects: SideEffectsNone,
 	}
 }
 

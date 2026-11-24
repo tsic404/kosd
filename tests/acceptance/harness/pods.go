@@ -11,7 +11,8 @@ import (
 )
 
 // PodFixture is one Pod an application's workload owns, shaped with the status
-// the runtime projection reads (C-76). The Pod has one container named "app".
+// the runtime projection reads (C-76). The Pod always has a container named
+// "app"; Containers adds sidecars.
 type PodFixture struct {
 	// Namespace is where the Pod lives; empty means Namespace.
 	Namespace string
@@ -29,6 +30,15 @@ type PodFixture struct {
 	Restarts int64
 	// Image is the container image; empty means nginx:1.27.
 	Image string
+	// ServiceAccount is spec.serviceAccountName; empty leaves the default.
+	ServiceAccount string
+	// Volumes are the Pod's volumes, so a case can shape what the container
+	// can read.
+	Volumes []any
+	// Mounts are the "app" container's volume mounts.
+	Mounts []any
+	// Containers names additional containers the Pod carries.
+	Containers []string
 	// StartedAt is status.startTime; zero omits it.
 	StartedAt time.Time
 }
@@ -53,19 +63,38 @@ func (c *Cluster) CreatePod(t *testing.T, fixture PodFixture) *unstructured.Unst
 	for key, value := range fixture.Labels {
 		labels[key] = value
 	}
-	spec := map[string]any{"containers": []any{map[string]any{"name": "app", "image": image}}}
+	app := map[string]any{"name": "app", "image": image}
+	if len(fixture.Mounts) > 0 {
+		app["volumeMounts"] = fixture.Mounts
+	}
+	containers := []any{app}
+	statuses := []any{map[string]any{
+		"name": "app", "image": image, "restartCount": fixture.Restarts,
+		"ready": fixture.Ready, "started": true,
+	}}
+	for _, name := range fixture.Containers {
+		containers = append(containers, map[string]any{"name": name, "image": image})
+		statuses = append(statuses, map[string]any{
+			"name": name, "image": image, "restartCount": int64(0),
+			"ready": fixture.Ready, "started": true,
+		})
+	}
+	spec := map[string]any{"containers": containers}
+	if len(fixture.Volumes) > 0 {
+		spec["volumes"] = fixture.Volumes
+	}
 	if fixture.Node != "" {
 		spec["nodeName"] = fixture.Node
+	}
+	if fixture.ServiceAccount != "" {
+		spec["serviceAccountName"] = fixture.ServiceAccount
 	}
 	status := map[string]any{
 		"phase": phase,
 		"conditions": []any{map[string]any{
 			"type": "Ready", "status": readyStatus(fixture.Ready),
 		}},
-		"containerStatuses": []any{map[string]any{
-			"name": "app", "image": image, "restartCount": fixture.Restarts,
-			"ready": fixture.Ready, "started": true,
-		}},
+		"containerStatuses": statuses,
 	}
 	if !fixture.StartedAt.IsZero() {
 		status["startTime"] = fixture.StartedAt.UTC().Format(time.RFC3339Nano)

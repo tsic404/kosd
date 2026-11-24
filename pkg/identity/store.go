@@ -13,6 +13,7 @@ import (
 
 	_ "modernc.org/sqlite"
 
+	"github.com/tsic404/kosd/pkg/controlplane"
 	"github.com/tsic404/kosd/pkg/write"
 )
 
@@ -900,4 +901,78 @@ func boolInt(value bool) int {
 		return 1
 	}
 	return 0
+}
+
+// AppendTerminalEvent stores one terminal audit record (KOSD-C-92). The table
+// accepts only inserts; a session's end, a component uninstall and a revoked
+// target permission delete nothing.
+func (s *Store) AppendTerminalEvent(ctx context.Context, event controlplane.TerminalEvent) error {
+	var sequence any
+	if event.Sequence != nil {
+		sequence = int64(*event.Sequence)
+	}
+	_, err := s.db.ExecContext(ctx, `INSERT INTO terminal_events
+		(actor, extension, session_id, target_type, target_id, target_uid, namespace, container,
+		 execution_identity, event, result, sequence, receipt, occurred_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		event.Actor, event.Extension, event.SessionID, event.TargetType, event.TargetID,
+		event.TargetUID, event.Namespace, event.Container, event.ExecutionIdentity,
+		event.Event, event.Result, sequence, event.Receipt, toMillis(event.OccurredAt))
+	if err != nil {
+		return fmt.Errorf("identity: append terminal event: %w", err)
+	}
+	return nil
+}
+
+// Ping reports whether the control-plane database answers, so a terminal
+// request can refuse to run without its audit trail (KOSD-C-92).
+func (s *Store) Ping(ctx context.Context) error {
+	return s.db.PingContext(ctx)
+}
+
+// TerminalEvents reads one session's terminal audit records oldest first
+// (KOSD-C-96). The returned cursor is the last event of a page that has more
+// events behind it; zero means the page was the end.
+func (s *Store) TerminalEvents(ctx context.Context, sessionID string, after int64, limit int) ([]controlplane.TerminalEvent, int64, error) {
+	if limit <= 0 {
+		limit = 50
+	}
+	rows, err := s.db.QueryContext(ctx, `SELECT id, actor, extension, session_id, target_type,
+		target_id, target_uid, namespace, container, execution_identity, event, result,
+		sequence, receipt, occurred_at
+		FROM terminal_events WHERE session_id = ? AND id > ? ORDER BY id LIMIT ?`,
+		sessionID, after, limit+1)
+	if err != nil {
+		return nil, 0, fmt.Errorf("identity: read terminal events: %w", err)
+	}
+	defer rows.Close()
+	events := make([]controlplane.TerminalEvent, 0, limit)
+	for rows.Next() {
+		var (
+			event      controlplane.TerminalEvent
+			sequence   sql.NullInt64
+			occurredAt int64
+		)
+		if err := rows.Scan(&event.ID, &event.Actor, &event.Extension, &event.SessionID,
+			&event.TargetType, &event.TargetID, &event.TargetUID, &event.Namespace,
+			&event.Container, &event.ExecutionIdentity, &event.Event, &event.Result,
+			&sequence, &event.Receipt, &occurredAt); err != nil {
+			return nil, 0, fmt.Errorf("identity: read terminal event: %w", err)
+		}
+		if sequence.Valid {
+			value := uint64(sequence.Int64)
+			event.Sequence = &value
+		}
+		event.OccurredAt = fromMillis(occurredAt)
+		events = append(events, event)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, 0, fmt.Errorf("identity: read terminal events: %w", err)
+	}
+	var next int64
+	if len(events) > limit {
+		events = events[:limit]
+		next = events[limit-1].ID
+	}
+	return events, next, nil
 }
