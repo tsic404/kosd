@@ -78,16 +78,16 @@ func (a *API) protect(next http.Handler) http.Handler {
 		}
 		token, ok := bearerToken(r)
 		if !ok {
-			controlplane.WriteError(w, failureFor(ErrUnauthenticated))
+			a.refuse(w, r, ErrUnauthenticated)
 			return
 		}
 		session, err := a.service.Authenticate(r.Context(), token)
 		if err != nil {
-			controlplane.WriteError(w, failureFor(err))
+			a.refuse(w, r, err)
 			return
 		}
 		if session.MustChangePassword && !allowedBeforePasswordChange(r.URL.Path) {
-			controlplane.WriteError(w, failureFor(fmt.Errorf("%w: a one-time password is still in use", ErrPasswordChangeRequired)))
+			a.refuse(w, r, fmt.Errorf("%w: a one-time password is still in use", ErrPasswordChangeRequired))
 			return
 		}
 		if session.Degraded && isWriteRequest(r) {
@@ -96,6 +96,19 @@ func (a *API) protect(next http.Handler) http.Handler {
 		}
 		next.ServeHTTP(w, r.WithContext(withSession(r.Context(), session)))
 	})
+}
+
+// refuse writes the account gate's answer. A terminal route answers a missing
+// or unusable console session in the terminal vocabulary (KOSD-C-91), so a
+// browser distinguishes it from a generic account refusal.
+func (a *API) refuse(w http.ResponseWriter, r *http.Request, err error) {
+	failure := failureFor(err)
+	if strings.HasPrefix(r.URL.Path, "/api/v1/terminal/") &&
+		(errors.Is(err, ErrUnauthenticated) || errors.Is(err, ErrPasswordChangeRequired)) {
+		failure.Code = controlplane.CodeTerminalUnauthenticated
+		failure.Message = "终端会话缺少有效的控制台登录"
+	}
+	controlplane.WriteError(w, failure)
 }
 
 // login trades a login name and password for a session (C-63).

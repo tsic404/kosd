@@ -179,6 +179,9 @@ type Config struct {
 	// ProjectionLatency measures the read projection path (C-57); nil records
 	// nothing.
 	ProjectionLatency *budget.Latency
+	// Terminal wires the terminal session surface (KOSD-C-90 to KOSD-C-96); a
+	// nil Console leaves the terminal routes unserved.
+	Terminal TerminalConfig
 	// Log records the detail a user-facing message must not carry; defaults to
 	// discarding it.
 	Log *slog.Logger
@@ -206,6 +209,7 @@ type Server struct {
 	storageCapacity   StorageCapacity
 	projectionLatency *budget.Latency
 	maintenance       NodeMaintenance
+	terminal          *terminalService
 	now               func() time.Time
 	timeout           time.Duration
 	log               *slog.Logger
@@ -267,6 +271,10 @@ func New(config Config) (*Server, error) {
 		server.log = slog.New(slog.DiscardHandler)
 	}
 	server.operations, server.stop = context.WithCancel(context.Background())
+	if config.Terminal.Console != nil {
+		server.terminal = newTerminalService(config.Terminal, server.now, server.log)
+		go server.terminal.Run(server.operations)
+	}
 	server.mux = http.NewServeMux()
 	server.routes()
 	return server, nil
@@ -301,9 +309,38 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /api/v1/node-maintenance", s.handleMaintenanceStart)
 	s.mux.HandleFunc("POST /api/v1/node-maintenance/drain", s.handleMaintenanceDrain)
 	s.mux.HandleFunc("DELETE /api/v1/node-maintenance/{name}", s.handleMaintenanceRestore)
+	if s.terminal != nil {
+		s.mux.HandleFunc("POST /api/v1/terminal/sessions", s.handleTerminalCreate)
+		s.mux.HandleFunc("GET /api/v1/terminal/sessions/{sessionId}", s.handleTerminalStatus)
+		s.mux.HandleFunc("POST /api/v1/terminal/sessions/{sessionId}/renew", s.handleTerminalRenew)
+		s.mux.HandleFunc("POST /api/v1/terminal/sessions/{sessionId}/attach", s.handleTerminalAttach)
+		s.mux.HandleFunc("POST /api/v1/terminal/sessions/{sessionId}/input", s.handleTerminalInput)
+		s.mux.HandleFunc("DELETE /api/v1/terminal/sessions/{sessionId}", s.handleTerminalEnd)
+		s.mux.HandleFunc("GET /api/v1/terminal/sessions/{sessionId}/audit", s.handleTerminalAudit)
+		s.mux.HandleFunc("GET /api/v1/terminal/nodes", s.handleTerminalNodes)
+	}
 	s.mux.HandleFunc("/", func(w http.ResponseWriter, _ *http.Request) {
 		writeError(w, notFound("没有这个接口"))
 	})
+}
+
+// TerminalPublicHandler serves the two token-only terminal routes. They are
+// mounted ahead of the console gate: a terminal token is the only credential
+// these paths accept, and no cookie identity is consulted (KOSD-C-91).
+func (s *Server) TerminalPublicHandler() http.Handler {
+	mux := http.NewServeMux()
+	if s.terminal == nil {
+		mux.HandleFunc("/", func(w http.ResponseWriter, _ *http.Request) {
+			writeError(w, notFound("没有这个接口"))
+		})
+		return mux
+	}
+	mux.HandleFunc("POST /api/v1/terminal/sessions/{sessionId}/attach", s.handleTerminalAttach)
+	mux.HandleFunc("POST /api/v1/terminal/sessions/{sessionId}/input", s.handleTerminalInput)
+	mux.HandleFunc("/", func(w http.ResponseWriter, _ *http.Request) {
+		writeError(w, notFound("没有这个接口"))
+	})
+	return mux
 }
 
 // Handler serves the API.

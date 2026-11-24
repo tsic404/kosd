@@ -235,6 +235,12 @@ func (s *Service) assign(ctx context.Context, subject Subject, id, node, value s
 	if subject.Writer != setting.Writer {
 		return Item{}, invalid(refusalOf(setting.Writer, subject.Writer))
 	}
+	// The terminal idle bound is the one cluster setting whose accepted values
+	// and writer the terminal contract fixes (KOSD-C-94): only the global Owner
+	// writes an integer inside the accepted range.
+	if failure := controlplane.ValidateTerminalSetting(setting.ID, string(subject.Session.Role), value); failure != nil {
+		return Item{}, failure
+	}
 	if setting.Writer == extension.SettingWriterUser {
 		if !setting.Editable {
 			return Item{}, invalid(reasonOf(setting))

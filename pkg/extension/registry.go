@@ -27,8 +27,11 @@ type Registry struct {
 	// preferenceKeys maps an extension identifier to the keys it declared
 	// (C-27).
 	preferenceKeys map[string][]string
-	declaredBy     map[GroupKind]string
-	writers        map[GroupKind][]write.Role
+	// identifiers are the active extension identifiers, so a surface that
+	// acts for one component can refuse an uninstalled identifier (KOSD-F-16).
+	identifiers map[string]bool
+	declaredBy  map[GroupKind]string
+	writers     map[GroupKind][]write.Role
 }
 
 // InstalledApp is one window application an active component declares, with the
@@ -145,6 +148,15 @@ func (r *Registry) ObjectClass(group, kind string) (controlplane.ExtensionObject
 func (r *Registry) IsServing(group, kind string) bool {
 	_, ok := r.ObjectClass(group, kind)
 	return ok
+}
+
+// IsActive reports whether one extension identifier belongs to an active
+// component. An identifier no active declaration carries is not active.
+func (r *Registry) IsActive(identifier string) bool {
+	if r == nil || identifier == "" {
+		return false
+	}
+	return r.identifiers[identifier]
 }
 
 // ObjectClasses returns the served extension classes in declaration order.
@@ -303,6 +315,7 @@ func buildRegistry(components []activated) (*Registry, map[string]Contributions,
 	registry := &Registry{
 		classes:        map[GroupKind]ObjectClass{},
 		preferenceKeys: map[string][]string{},
+		identifiers:    map[string]bool{},
 		declaredBy:     map[GroupKind]string{},
 		writers:        map[GroupKind][]write.Role{},
 	}
@@ -312,6 +325,9 @@ func buildRegistry(components []activated) (*Registry, map[string]Contributions,
 
 	for _, component := range components {
 		entry := component.loaded.Contributions
+		if component.loaded.Identifier != "" {
+			registry.identifiers[component.loaded.Identifier] = true
+		}
 		kept := make([]ObjectClass, 0, len(entry.ObjectClasses))
 		for _, class := range entry.ObjectClasses {
 			key := class.GroupKind()

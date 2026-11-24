@@ -82,6 +82,11 @@ type Session struct {
 // IsOwner reports whether the session holds the global Owner role.
 func (s Session) IsOwner() bool { return s.Role == write.RoleOwner }
 
+// TokenHash is the stored digest of the bearer token that opened this session.
+// A terminal token binds to it, so ending the console session ends the
+// terminal token too (KOSD-C-91).
+func (s Session) TokenHash() string { return s.tokenHash }
+
 // Account is one account as the API and the audit trail see it.
 type Account struct {
 	// Username is the login name.

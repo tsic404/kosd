@@ -41,6 +41,7 @@ import (
 	"github.com/tsic404/kosd/pkg/pages"
 	"github.com/tsic404/kosd/pkg/panel"
 	"github.com/tsic404/kosd/pkg/settings"
+	terminalpkg "github.com/tsic404/kosd/pkg/terminal"
 	"github.com/tsic404/kosd/pkg/upgrade"
 	"github.com/tsic404/kosd/pkg/write"
 )
@@ -93,6 +94,12 @@ func (s *extensionSource) ObjectClass(group, kind string) (controlplane.Extensio
 
 // Settings implements settings.Declarations.
 func (s *extensionSource) Settings() []extension.Setting { return s.current().Settings() }
+
+// IsActive implements controlplane.TerminalExtensions: a component that has
+// not reached the active set serves no terminal session (KOSD-F-16).
+func (s *extensionSource) IsActive(identifier string) bool {
+	return s.current().IsActive(identifier)
+}
 
 // Setting implements settings.Declarations.
 func (s *extensionSource) Setting(id string) (extension.Setting, bool) {
@@ -197,17 +204,21 @@ func main() {
 // is asked to stop.
 func run() error {
 	var (
-		address      string
-		kubeconfig   string
-		databasePath string
-		packagesPath string
-		memoryLimit  int64
+		address              string
+		kubeconfig           string
+		databasePath         string
+		packagesPath         string
+		memoryLimit          int64
+		terminalRunner       string
+		terminalNodeIsolated bool
 	)
 	flag.StringVar(&address, "address", defaultAddress, "HTTP listen address")
 	flag.StringVar(&kubeconfig, "kubeconfig", "", "path to the kubeconfig; empty uses the in-cluster configuration")
 	flag.StringVar(&databasePath, "database", defaultDatabasePath, "path to the control-plane database")
 	flag.StringVar(&packagesPath, "packages", install.PackageDirectory, "directory extension packages are read from")
 	flag.Int64Var(&memoryLimit, "memory-limit", 0, "degradation threshold in bytes; zero selects the default")
+	flag.StringVar(&terminalRunner, "terminal-executor", "", "terminal executor: empty leaves sessions unavailable, kubernetes executes Pod sessions")
+	flag.BoolVar(&terminalNodeIsolated, "terminal-node-isolated", false, "assert that root@node cannot read control-plane credentials; without it node sessions are refused")
 	flag.Parse()
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
@@ -235,6 +246,14 @@ func run() error {
 	kubeClient, err := kubernetes.NewForConfig(restConfig)
 	if err != nil {
 		return fmt.Errorf("build run kernel client: %w", err)
+	}
+	var executor controlplane.TerminalExecutor
+	switch terminalRunner {
+	case "":
+	case "kubernetes":
+		executor = &terminalpkg.Kubernetes{Client: kubeClient, Config: restConfig}
+	default:
+		return fmt.Errorf("unknown -terminal-executor %q: want empty or kubernetes", terminalRunner)
 	}
 
 	store, err := identity.Open(ctx, identity.OpenOptions{Path: databasePath})
@@ -287,6 +306,28 @@ func run() error {
 		Log:        logger,
 	})
 	catalogueService := catalogue.New(projection, dynamicClient)
+	terminalIdle := func(ctx context.Context) (int, *controlplane.Error) {
+		values, err := store.SettingValues(ctx, extension.SettingScopeCluster, "")
+		if err != nil {
+			return 0, &controlplane.Error{
+				Code:        controlplane.CodeDatabaseUnavailable,
+				Message:     "控制面数据库不可用，无法读取终端空闲配置",
+				Stage:       controlplane.StageRead,
+				Retryable:   true,
+				SideEffects: controlplane.SideEffectsNone,
+			}
+		}
+		minutes, ok := controlplane.TerminalIdleMinutes(values[controlplane.TerminalIdleSettingID])
+		if !ok {
+			return 0, &controlplane.Error{
+				Code:        controlplane.CodeInternal,
+				Message:     "已存的终端空闲配置无效",
+				Stage:       controlplane.StageRead,
+				SideEffects: controlplane.SideEffectsNone,
+			}
+		}
+		return minutes, nil
+	}
 	domain, err := controlplane.New(controlplane.Config{
 		Dynamic:     dynamicClient,
 		Extensions:  projection,
@@ -297,7 +338,15 @@ func run() error {
 		Degradation: banner.state,
 		Protection:  protection,
 		Definitions: clusterDefinitions{client: apiextensionsClient},
-		Log:         logger,
+		Terminal: controlplane.TerminalConfig{
+			Console:     identity.TerminalSessions{Service: accounts, Store: store},
+			Audit:       identity.TerminalAuditTrail{Store: store},
+			Extensions:  projection,
+			Executor:    executor,
+			Boundary:    terminalpkg.Boundary{NodeIsolated: terminalNodeIsolated},
+			IdleTimeout: terminalIdle,
+		},
+		Log: logger,
 	})
 	if err != nil {
 		return err
@@ -328,6 +377,10 @@ func run() error {
 	// exists, so it is served ahead of the account gate (KOSD-C-56, KOSD-C-57).
 	root := http.NewServeMux()
 	root.Handle("GET /api/v1/system/health", domain.Handler())
+	// A terminal token is the only credential the attach and input routes
+	// accept, so they sit ahead of the console gate (KOSD-C-91).
+	root.Handle("POST /api/v1/terminal/sessions/{sessionId}/attach", domain.TerminalPublicHandler())
+	root.Handle("POST /api/v1/terminal/sessions/{sessionId}/input", domain.TerminalPublicHandler())
 	root.Handle("/", pagesAPI.RefuseWrites(accountsAPI))
 	server := &http.Server{Addr: address, Handler: root, ReadHeaderTimeout: 10 * time.Second}
 
