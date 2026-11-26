@@ -305,6 +305,13 @@ func isContributing(result ComponentResult) bool {
 	}
 }
 
+// IsContributing reports whether a result's declared contributions are active
+// (C-28). A process that hosts reconcile loops uses it to decide whether a
+// component's controllers are part of the active set.
+func IsContributing(result ComponentResult) bool {
+	return isContributing(result)
+}
+
 // shouldClearRegistration reports whether the pass knows the component no
 // longer serves its registration. A withdrawn component (disable request or
 // deletion) and an evaluated component without active contributions clear it;

@@ -157,6 +157,51 @@ func TestControllerRecoversAfterASuccessfulRound(t *testing.T) {
 	})
 }
 
+// TestControllerSetStartsAndStopsDeclaredControllers pins C-20, C-28 and C-29:
+// a controller the process has no implementation for is served but unavailable,
+// registering its implementation starts a loop that actually runs, and
+// withdrawing the component stops it.
+func TestControllerSetStartsAndStopsDeclaredControllers(t *testing.T) {
+	set := NewControllerSet(1)
+	contribution := Controller{ID: "widget", Manages: []GroupKind{{Group: "widgets.example.test", Kind: "Widget"}}}
+	if err := set.Declare("demo.widgets", contribution); err != nil {
+		t.Fatalf("declare: %v", err)
+	}
+	startControllerSet(t, set)
+
+	// A declaration without an implementation has no loop: the round is dropped
+	// rather than claimed as done.
+	if set.Implemented("widgets.example.test", "Widget") {
+		t.Fatal("a declaration with no implementation reported an executing controller")
+	}
+	set.EnqueueClass("widgets.example.test", "Widget", reconcile.Request{Kind: "Widget", Namespace: "default", Name: "one"})
+
+	var rounds atomic.Int64
+	implemented := functionReconciler(func(context.Context, reconcile.Request) (reconcile.Result, error) {
+		rounds.Add(1)
+		return reconcile.Result{}, nil
+	})
+	if err := set.Register("demo.widgets", contribution, implemented); err != nil {
+		t.Fatalf("register the implementation: %v", err)
+	}
+	if !set.Implemented("widgets.example.test", "Widget") {
+		t.Fatal("the registered controller is not reported as executing")
+	}
+	set.EnqueueClass("widgets.example.test", "Widget", reconcile.Request{Kind: "Widget", Namespace: "default", Name: "one"})
+	waitFor(t, "the registered controller to run a round", func() bool { return rounds.Load() > 0 })
+
+	set.Unregister("demo.widgets")
+	if _, _, served := set.Serving("widgets.example.test", "Widget"); served {
+		t.Fatal("a withdrawn component still serves its class")
+	}
+	before := rounds.Load()
+	set.EnqueueClass("widgets.example.test", "Widget", reconcile.Request{Kind: "Widget", Namespace: "default", Name: "two"})
+	time.Sleep(200 * time.Millisecond)
+	if rounds.Load() != before {
+		t.Fatal("a withdrawn controller kept reconciling")
+	}
+}
+
 // TestControllerSetRefusesTwoControllersForOneClass checks C-20's single writer:
 // two controllers cannot claim one object class.
 func TestControllerSetRefusesTwoControllersForOneClass(t *testing.T) {
