@@ -9,6 +9,7 @@ import (
 
 	"k8s.io/client-go/dynamic"
 
+	devicemanager "github.com/tsic404/kos-devicemanager/pkg/devicemanager"
 	kosdiagnostics "github.com/tsic404/kos-diagnostics"
 	taskmanager "github.com/tsic404/kos-taskmanager/app"
 
@@ -53,12 +54,15 @@ type Config struct {
 // same identifier wins, so a host that serves its own build of the product is
 // not silently replaced.
 func New(declarations pages.Declarations, config Config) *pages.Service {
-	router := make(pages.Router, len(config.Products)+2)
+	router := make(pages.Router, len(config.Products)+3)
 	for _, product := range config.Products {
 		router[product.Identifier] = product.Readings
 	}
 	if _, supplied := router[kosdiagnostics.Identifier]; !supplied {
 		router[kosdiagnostics.Identifier] = kosdiagnostics.NewReader(config.Dynamic, config.Environment, config.Now)
+	}
+	if _, supplied := router[devicemanager.Identifier]; !supplied {
+		router[devicemanager.Identifier] = &devicemanager.Readings{Dynamic: config.Dynamic, Now: config.Now}
 	}
 	if _, supplied := router[taskmanager.Identifier]; !supplied {
 		router[taskmanager.Identifier] = &taskmanager.Readings{Dynamic: config.Dynamic, Audit: config.Audit, Now: config.Now}
