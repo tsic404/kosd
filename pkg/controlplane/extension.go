@@ -18,6 +18,9 @@ type ExtensionObjectClass struct {
 	Resource string
 	// Namespaced marks a class whose objects live in a namespace.
 	Namespaced bool
+	// References are the dotted paths inside one object whose values name a
+	// kernel object declaratively (C-19).
+	References []string
 }
 
 // ControllerAvailability reports what a reader observes of an extension object
