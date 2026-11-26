@@ -16,6 +16,7 @@ import (
 
 	"github.com/tsic404/kosd/api"
 	"github.com/tsic404/kosd/api/v1beta1"
+	"github.com/tsic404/kosd/pkg/apptoken"
 	"github.com/tsic404/kosd/pkg/controlplane"
 	"github.com/tsic404/kosd/pkg/write"
 )
@@ -28,6 +29,44 @@ type Session struct {
 	Username string
 	// Role is the account's current role.
 	Role write.Role
+	// App is the application identity when the request carries an application
+	// token instead of a session (KOSD-C-85, KOSD-C-86).
+	App *AppSession
+}
+
+// AppSession is the application identity one request carries (KOSD-C-86): the
+// installed application, the request origin, and the read authorization the
+// token was issued with.
+type AppSession struct {
+	// Extension identifies the installed application's extension.
+	Extension string
+	// AppID is the application the token belongs to.
+	AppID string
+	// Origin is the Origin header the request carried (KOSD-C-87).
+	Origin string
+	// TokenOrigin is the entry origin recorded when the token was issued
+	// (KOSD-C-75). A request from another origin stays outside the binding.
+	TokenOrigin string
+	// Grants is the read authorization recorded when the token was issued
+	// (KOSD-C-85). It is an upper bound, never a replacement for the current
+	// declaration or the account's current visibility.
+	Grants []apptoken.Grant
+	// Objects is the issue-time readable range the token recorded for classes
+	// whose visibility is decided per object (KOSD-C-85). Without it a class
+	// grant admits no single object, so a later permission change cannot widen
+	// an existing token.
+	Objects []apptoken.Object
+}
+
+// DeclaredRead is one declared read permission: the classes it covers and the
+// role it requires (KOSD-C-85).
+type DeclaredRead struct {
+	// Grants are the group and kind pairs the permission covers. An empty kind
+	// covers every kind of the group.
+	Grants []apptoken.Grant
+	// RequiredRole is the session role the permission needs; empty admits every
+	// signed-in role.
+	RequiredRole write.Role
 }
 
 // signedIn reports whether the session carries a usable role.
@@ -81,6 +120,12 @@ type ExtensionRoles interface {
 	ObjectWriters(group, kind string) (writers []write.Role, ok bool)
 	// DeclaredBy returns the identifier of the extension declaring the class.
 	DeclaredBy(group, kind string) (identifier string, ok bool)
+	// ReadScopes returns the read permissions one extension currently declares
+	// (KOSD-C-85). An identifier that declares none reads nothing.
+	ReadScopes(identifier string) []DeclaredRead
+	// AppOrigin returns the entry origin one installed application declares
+	// (KOSD-C-87).
+	AppOrigin(identifier, appID string) (string, bool)
 }
 
 // Policy is the C-59/C-60 rule set over control-plane requests.
@@ -100,6 +145,9 @@ func (p *Policy) Decide(ctx context.Context, session Session, request controlpla
 	grant := controlplane.Grant{Actor: session.Username}
 	if !session.signedIn() {
 		return grant, fmt.Errorf("access: the request carries no role")
+	}
+	if session.App != nil {
+		return p.decideApp(ctx, session, request)
 	}
 	switch request.Verb {
 	case controlplane.VerbRead:
@@ -129,6 +177,199 @@ func (p *Policy) Decide(ctx context.Context, session Session, request controlpla
 	default:
 		return grant, fmt.Errorf("access: verb %q is not judged", request.Verb)
 	}
+}
+
+// decideApp judges one request that carries an application token (KOSD-C-85,
+// KOSD-C-86). Only reads run, and one read must stay inside the intersection of
+// the extension's current declaration, the token's issue-time grants and the
+// account's current visibility.
+func (p *Policy) decideApp(ctx context.Context, session Session, request controlplane.Request) (controlplane.Grant, error) {
+	app := session.App
+	grant := controlplane.Grant{Actor: session.Username, Extension: app.Extension}
+	switch request.Verb {
+	case controlplane.VerbRead, controlplane.VerbEventRead:
+	default:
+		return grant, denyf("an application token never writes")
+	}
+	// A collection read that names no object still asks whether the identity is
+	// admitted to the surface at all. Answering that here keeps the question
+	// apart from per-item visibility, which only ever hides one item
+	// (KOSD-C-85, KOSD-C-86).
+	if request.Admit {
+		if !p.appAdmitted(session) || !p.appAuthorized(session) {
+			return grant, controlplane.ErrUnadmitted
+		}
+		return grant, nil
+	}
+	// A collection read walks its items one by one; an item outside the class
+	// or object range is dropped from the page. A single read is answered as a
+	// refusal instead, because the caller named that object (KOSD-C-85).
+	if !p.appMayRead(session, request.Ref) {
+		if request.Filter {
+			return grant, controlplane.ErrHidden
+		}
+		return grant, denyf("the application token does not grant reading %s", request.Ref.Kind)
+	}
+	if request.Verb == controlplane.VerbEventRead {
+		return grant, p.eventVisible(ctx, session, request)
+	}
+	if request.Object == nil {
+		return grant, nil
+	}
+	visible, err := p.visible(ctx, session, request.Ref, request.Object)
+	if err != nil {
+		return grant, err
+	}
+	if !visible {
+		// An application token reads only inside its issue-time range; an object
+		// outside that range is an out-of-scope read, which KOSD-C-85 and
+		// KOSD-C-86 answer as permission denied rather than as an absent object.
+		// A collection read drops the same object from its page.
+		if request.Filter {
+			return grant, controlplane.ErrHidden
+		}
+		return grant, denyf("the application token does not admit %s", request.Ref.String())
+	}
+	return grant, nil
+}
+
+// appAdmitted reports whether an application identity may call the read surface
+// at all: the extension must currently declare it, and the request origin must
+// be the declared entry origin recorded when the token was issued (KOSD-C-85,
+// KOSD-C-87). It names no object, so it is the question a collection read asks
+// before it walks any item.
+func (p *Policy) appAdmitted(session Session) bool {
+	if p.Extensions == nil || session.App == nil {
+		return false
+	}
+	declared, ok := p.Extensions.AppOrigin(session.App.Extension, session.App.AppID)
+	if !ok || declared == "" {
+		return false
+	}
+	// Compare browser-serialized origins, so a declaration or an issued binding
+	// that writes an explicit default port still matches the Origin a browser
+	// sends (KOSD-C-87). The comparison stays exact on scheme, host and port.
+	origin := apptoken.NormalizeOrigin(session.App.Origin)
+	return origin != "" &&
+		origin == apptoken.NormalizeOrigin(declared) &&
+		origin == apptoken.NormalizeOrigin(session.App.TokenOrigin)
+}
+
+// appAuthorized reports whether any read authorization survives the C-85
+// intersection: a read the extension currently declares, a class the token was
+// issued for, and a declared role the account still holds. A collection read
+// asks this once, so an identity the intersection leaves empty is refused
+// instead of answered with an empty page (KOSD-C-85, KOSD-C-86). The account's
+// current readable range is per object, so it stays on the per-item side: an
+// authorized identity with nothing visible still reads an empty page.
+func (p *Policy) appAuthorized(session Session) bool {
+	if p.Extensions == nil || session.App == nil {
+		return false
+	}
+	for _, read := range p.Extensions.ReadScopes(session.App.Extension) {
+		if !roleSatisfies(session.Role, read.RequiredRole) {
+			continue
+		}
+		for _, issued := range session.App.Grants {
+			for _, declared := range read.Grants {
+				if grantOverlap(issued, declared) {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
+// grantOverlap reports whether two grants admit a common class: the same API
+// group, with either side covering every kind or both naming the same one.
+func grantOverlap(left, right apptoken.Grant) bool {
+	if left.Group != right.Group {
+		return false
+	}
+	return left.Kind == "" || right.Kind == "" || left.Kind == right.Kind
+}
+
+// appMayRead applies the limits a read carries: the request origin must be the
+// application's declared entry origin, the extension must currently declare the
+// class with a role the account still holds, the token must have been issued for
+// it, and an object of a visibility-scoped class must sit inside the range the
+// issuer recorded (KOSD-C-85, KOSD-C-87).
+func (p *Policy) appMayRead(session Session, ref controlplane.ObjectRef) bool {
+	if !p.appAdmitted(session) {
+		return false
+	}
+	if !covers(session.App.Grants, ref.Group, ref.Kind) {
+		return false
+	}
+	if ref.Name != "" && !objectScopeAdmits(session.App, ref) {
+		return false
+	}
+	for _, read := range p.Extensions.ReadScopes(session.App.Extension) {
+		if !roleSatisfies(session.Role, read.RequiredRole) {
+			continue
+		}
+		if covers(read.Grants, ref.Group, ref.Kind) {
+			return true
+		}
+	}
+	return false
+}
+
+// objectScopeAdmits reports whether one object sits inside the range the token
+// recorded at issue time (KOSD-C-85). A class whose visibility the API decides
+// per object must name the object; every other class is covered by its class
+// grant, because its visibility does not depend on the account.
+func objectScopeAdmits(app *AppSession, ref controlplane.ObjectRef) bool {
+	if !visibilityScoped(ref) {
+		return true
+	}
+	for _, issued := range app.Objects {
+		if issued.Matches(ref.Group, ref.Kind, ref.Namespace, ref.Name) {
+			return true
+		}
+	}
+	return false
+}
+
+// visibilityScoped reports whether one class decides visibility per object
+// (C-59). An application follows its owner and its visibility list; every other
+// class is visible to every signed-in role, so its class grant is already the
+// whole range.
+func visibilityScoped(ref controlplane.ObjectRef) bool {
+	return ref.Group == api.Group && ref.Kind == "Application"
+}
+
+// covers reports whether any grant admits one group and kind.
+func covers(grants []apptoken.Grant, group, kind string) bool {
+	for _, grant := range grants {
+		if grant.Covers(group, kind) {
+			return true
+		}
+	}
+	return false
+}
+
+// roleRank orders the session roles; an unknown or empty role fails every
+// declared requirement.
+var roleRank = map[write.Role]int{
+	write.RoleGuest:  0,
+	write.RoleMember: 1,
+	write.RoleOwner:  2,
+}
+
+// roleSatisfies reports whether one role meets a declared requirement. An empty
+// requirement admits every signed-in role.
+func roleSatisfies(role, required write.Role) bool {
+	rank, signedIn := roleRank[role]
+	if !signedIn {
+		return false
+	}
+	if required == "" {
+		return true
+	}
+	minimum, known := roleRank[required]
+	return known && rank >= minimum
 }
 
 // visible applies C-59's visibility predicate. Only applications have one:

@@ -77,6 +77,9 @@ const (
 	// CodeDatabaseUnavailable marks a request the control-plane database
 	// cannot serve right now (C-61).
 	CodeDatabaseUnavailable = "database_unavailable"
+	// CodeServiceUnavailable marks a request whose token validity or
+	// authorization cannot be determined right now (KOSD-C-86).
+	CodeServiceUnavailable = "service_unavailable"
 	// CodeAccountExists marks a create whose login name is taken.
 	CodeAccountExists = "account_exists"
 	// CodeLastOwner marks a change that would leave no usable Owner (C-63).
@@ -202,7 +205,7 @@ func (e *Error) status() int {
 		return http.StatusConflict
 	case CodeWriteFailed, CodeClusterUnavailable, CodeClusterCredentialsInvalid:
 		return http.StatusBadGateway
-	case CodeDatabaseUnavailable, CodeOwnershipCheckFailed, CodeReadOnly, CodeStorageFull,
+	case CodeDatabaseUnavailable, CodeServiceUnavailable, CodeOwnershipCheckFailed, CodeReadOnly, CodeStorageFull,
 		CodeTerminalNodeUnreachable, CodeTerminalExecutorUnavailable,
 		CodeTerminalCredentialBoundaryUnavailable, CodeTerminalAuditUnavailable,
 		CodeTerminalTargetSourceUnavailable:

@@ -40,6 +40,10 @@ var (
 	// never opened, it already delivered its password, or its deadline passed
 	// (C-68).
 	ErrBootstrapClosed = errors.New("identity: the first-Owner claim window is closed")
+	// ErrServiceUnavailable means the token a request carries cannot be judged
+	// right now, so the control plane answers service unavailable rather than
+	// letting the request through or calling it unauthenticated (KOSD-C-86).
+	ErrServiceUnavailable = errors.New("identity: token validity or authorization cannot be determined")
 )
 
 // ValidationError rejects an input the service cannot accept. The message is

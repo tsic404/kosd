@@ -142,6 +142,16 @@ func (s *extensionSource) ObjectWriters(group, kind string) ([]write.Role, bool)
 	return s.current().ObjectWriters(group, kind)
 }
 
+// ReadScopes implements access.ExtensionRoles (KOSD-C-85).
+func (s *extensionSource) ReadScopes(identifier string) []access.DeclaredRead {
+	return s.current().ReadScopes(identifier)
+}
+
+// AppOrigin implements access.ExtensionRoles (KOSD-C-87).
+func (s *extensionSource) AppOrigin(identifier, appID string) (string, bool) {
+	return s.current().AppOrigin(identifier, appID)
+}
+
 // definitionDirectory reads the CRD manifests the release ships and reports the
 // kinds that no longer serve the version the control plane requires
 // (KOSD-C-16). The process either has a usable object model or refuses to
@@ -263,6 +273,14 @@ func run() error {
 	defer store.Close()
 
 	projection := newExtensionSource()
+	// The window tokens live in the control-plane database and are written by the
+	// account layer, so the process that serves the accounts also serves the
+	// token table the window host takes a token from (KOSD-C-75, KOSD-C-86).
+	windowTokens, err := identity.NewAppTokens(store, projection)
+	if err != nil {
+		return err
+	}
+	defer windowTokens.Close()
 	banner := processBanner{state: &degrade.Static{}}
 	protection := degrade.NewProtection(degrade.ProtectionConfig{ThresholdBytes: memoryLimit})
 	trail := identity.AuditTrail{Store: store}
@@ -270,6 +288,7 @@ func run() error {
 		Owned:       identity.ClusterOwnedObjects{Dynamic: dynamicClient},
 		Preferences: projection,
 		Auditor:     trail,
+		AppTokens:   windowTokens,
 		Log:         logger,
 	})
 	// The upgrade preflight record shares the control-plane database with the
@@ -328,11 +347,12 @@ func run() error {
 		}
 		return minutes, nil
 	}
+	authorizer := identity.Authorizer{Policy: &access.Policy{Objects: controlplane.NewClusterSource(dynamicClient), Extensions: projection}}
 	domain, err := controlplane.New(controlplane.Config{
 		Dynamic:     dynamicClient,
 		Extensions:  projection,
 		Catalogue:   catalogueService,
-		Authorizer:  identity.Authorizer{Policy: &access.Policy{Objects: controlplane.NewClusterSource(dynamicClient), Extensions: projection}},
+		Authorizer:  authorizer,
 		Auditor:     trail,
 		Actor:       identity.Operator,
 		Degradation: banner.state,
@@ -372,7 +392,8 @@ func run() error {
 	shell.Handle("/api/v1/upgrade-preflights/", upgradesAPI)
 	shell.Handle("/api/v1/upgrade-requests", upgradesAPI)
 	shell.Handle("/", domain.Handler())
-	accountsAPI := identity.NewAPI(accounts).Handler(shell)
+	windowIssuer := identity.NewAppTokenIssuer(accounts, windowTokens, authorizer.Policy)
+	accountsAPI := identity.NewAPIWithAppTokens(accounts, windowTokens, windowIssuer).Handler(shell)
 	// The health endpoint is the probe surface: it answers before any session
 	// exists, so it is served ahead of the account gate (KOSD-C-56, KOSD-C-57).
 	root := http.NewServeMux()

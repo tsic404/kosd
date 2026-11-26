@@ -98,6 +98,12 @@ func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
 		}
 		filter = &EventFilter{Ref: ref}
 		scope = ref.Namespace
+	} else if _, failure := s.admit(r.Context(), VerbRead, ObjectRef{Kind: "Event", Namespace: scope}); failure != nil {
+		// An unfiltered read names no subject, so the identity-level half of the
+		// rule is answered once before any event is walked. A refusal here fails
+		// the read instead of arriving as an empty window (KOSD-C-86).
+		writeError(w, failure)
+		return
 	}
 	read, failure := (EventReader{
 		Source: s.source, Authorizer: s.authorizer, Now: s.now, Log: s.log,
@@ -220,7 +226,7 @@ func (r EventReader) visible(ctx context.Context, subject ObjectRef, cache map[s
 	if known && objectType.Group == api.Group && objectType.Kind == "Application" {
 		verb = VerbRead
 	}
-	_, err := r.Authorizer.Decide(ctx, Request{Verb: verb, Ref: subject, Object: object})
+	_, err := r.Authorizer.Decide(ctx, Request{Verb: verb, Ref: subject, Object: object, Filter: true})
 	switch {
 	case err == nil:
 		cache[key] = true
@@ -228,6 +234,29 @@ func (r EventReader) visible(ctx context.Context, subject ObjectRef, cache map[s
 	case errors.Is(err, ErrHidden):
 		cache[key] = false
 		return false, nil
+	case errors.Is(err, ErrUnavailable):
+		// The rule cannot answer for this identity right now. Hiding the event
+		// would report "nothing to show" for a read that never decided
+		// (KOSD-C-86).
+		return false, (&Error{
+			Code:               CodeServiceUnavailable,
+			Message:            "无法确定该身份的有效性或授权",
+			Stage:              StageAuthorize,
+			Retryable:          true,
+			RequiresUserAction: false,
+			SideEffects:        SideEffectsNone,
+		}).about(subject)
+	case errors.Is(err, ErrUnadmitted):
+		// The identity is not admitted to the surface at all, so every event of
+		// it would be hidden for the same reason; that is a refusal, not a
+		// window with nothing in it (KOSD-C-86).
+		return false, (&Error{
+			Code:               CodePermissionDenied,
+			Message:            "当前身份不能读取事件",
+			Stage:              StageAuthorize,
+			RequiresUserAction: true,
+			SideEffects:        SideEffectsNone,
+		}).about(subject)
 	default:
 		if r.Log != nil {
 			r.Log.Info("event hidden from session", "object", key, "reason", err)

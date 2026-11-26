@@ -14,6 +14,7 @@ import (
 
 	"github.com/tsic404/kosd/api"
 	"github.com/tsic404/kosd/pkg/access"
+	"github.com/tsic404/kosd/pkg/apptoken"
 	"github.com/tsic404/kosd/pkg/controlplane"
 	"github.com/tsic404/kosd/pkg/write"
 )
@@ -29,6 +30,11 @@ const (
 	passwordPath = "/api/v1/auth/password"
 )
 
+// windowTokenPath is where the console host takes the token it hands to one
+// window (KOSD-C-75). The routes below it need a console session, so an
+// application token can never mint or end one.
+const windowTokenPath = "/api/v1/app-tokens"
+
 // BootstrapOwnerPath delivers the first Owner's one-time password for the
 // external control plane (C-68). It is the only other route that needs no
 // session.
@@ -38,11 +44,24 @@ const BootstrapOwnerPath = "/api/v1/bootstrap/owner"
 // behind a session (C-63, C-68).
 type API struct {
 	service *Service
+	// appTokens resolves window application tokens; nil keeps the surface
+	// session-only.
+	appTokens apptoken.Verifier
+	// appIssuer mints the tokens the control plane keeps; nil leaves the
+	// window-token routes unmounted.
+	appIssuer *AppTokenIssuer
 }
 
 // NewAPI builds the HTTP surface of the account service.
 func NewAPI(service *Service) *API {
 	return &API{service: service}
+}
+
+// NewAPIWithAppTokens builds the account surface with the application token
+// verifier the control plane owns and, when an issuer is given, the routes the
+// console host uses to take a token for a window (KOSD-C-75, KOSD-C-86).
+func NewAPIWithAppTokens(service *Service, tokens apptoken.Verifier, issuer *AppTokenIssuer) *API {
+	return &API{service: service, appTokens: tokens, appIssuer: issuer}
 }
 
 // Handler mounts the identity routes and falls through to next for everything
@@ -64,6 +83,10 @@ func (a *API) Handler(next http.Handler) http.Handler {
 	mux.HandleFunc("POST /api/v1/accounts", a.createAccount)
 	mux.HandleFunc("PUT /api/v1/accounts/{name}", a.updateAccount)
 	mux.HandleFunc("DELETE /api/v1/accounts/{name}", a.deleteAccount)
+	if a.appIssuer != nil {
+		mux.HandleFunc("POST "+windowTokenPath, a.issueWindowToken)
+		mux.HandleFunc("DELETE "+windowTokenPath+"/{windowId}", a.revokeWindowToken)
+	}
 	mux.Handle("/", next)
 	return a.protect(mux)
 }
@@ -83,6 +106,11 @@ func (a *API) protect(next http.Handler) http.Handler {
 		}
 		session, err := a.service.Authenticate(r.Context(), token)
 		if err != nil {
+			if a.appTokens != nil && errors.Is(err, ErrUnauthenticated) {
+				if a.serveAppToken(w, r, token, next) {
+					return
+				}
+			}
 			a.refuse(w, r, err)
 			return
 		}
@@ -109,6 +137,118 @@ func (a *API) refuse(w http.ResponseWriter, r *http.Request, err error) {
 		failure.Message = "终端会话缺少有效的控制台登录"
 	}
 	controlplane.WriteError(w, failure)
+}
+
+// serveAppToken resolves an application token and, when it is usable, serves
+// the request under the application identity (KOSD-C-85, KOSD-C-86). It reports
+// whether it answered.
+func (a *API) serveAppToken(w http.ResponseWriter, r *http.Request, token string, next http.Handler) bool {
+	binding, err := a.appTokens.Verify(r.Context(), token)
+	if err != nil {
+		if errors.Is(err, apptoken.ErrUnavailable) {
+			controlplane.WriteError(w, failureFor(ErrServiceUnavailable))
+			return true
+		}
+		// A token no verifier knows stays unauthenticated.
+		return false
+	}
+	verb := "read"
+	if r.Method != http.MethodGet && r.Method != http.MethodHead {
+		verb = strings.ToLower(r.Method)
+	}
+	if verb != "read" || !appReadPath(r.URL.Path) {
+		// Writes and reads outside KOSD-C-85's callable set are refused before
+		// any handler runs, so neither a write nor an out-of-set read can leave
+		// a state change or return protected content.
+		controlplane.WriteError(w, failureFor(fmt.Errorf("%w: an application token reads only the declared read surface", ErrPermissionDenied)))
+		a.service.recordAppAccess(r.Context(), binding, verb, http.StatusForbidden)
+		return true
+	}
+	role, err := a.service.roleOf(r.Context(), binding.Account)
+	if err != nil {
+		controlplane.WriteError(w, failureFor(err))
+		a.service.recordAppAccess(r.Context(), binding, verb, http.StatusForbidden)
+		return true
+	}
+	// Both the recorded binding and the incoming header are reduced to the
+	// browser's origin serialization, so an explicit default port in either one
+	// does not make a correct request look foreign (KOSD-C-87).
+	binding.Origin = apptoken.NormalizeOrigin(binding.Origin)
+	identity := AppIdentity{Binding: binding, Role: role, Origin: apptoken.NormalizeOrigin(r.Header.Get("Origin"))}
+	recorder := &statusRecorder{ResponseWriter: w}
+	next.ServeHTTP(recorder, r.WithContext(withApp(r.Context(), identity)))
+	a.service.recordAppAccess(r.Context(), binding, verb, recorder.statusCode())
+	return true
+}
+
+// appReadPath reports whether one path belongs to the read surface an
+// application token may call (KOSD-C-85): resource lists and single reads, the
+// Pod projection, logs, events and the diagnostics evidence chain. Every other
+// endpoint, including the account surface, is outside the callable set.
+func appReadPath(path string) bool {
+	switch {
+	case strings.HasPrefix(path, "/api/v1/resources/"):
+		return true
+	case strings.HasPrefix(path, "/api/v1/pods/"):
+		return true
+	case strings.HasPrefix(path, "/api/v1/logs/"):
+		return true
+	case path == "/api/v1/events":
+		return true
+	case strings.HasPrefix(path, "/api/v1/diagnostics/"):
+		return true
+	default:
+		return false
+	}
+}
+
+// statusRecorder keeps the status one handler answered with so the audit trail
+// can tell an accepted read from a refused one.
+type statusRecorder struct {
+	http.ResponseWriter
+	status int
+}
+
+// WriteHeader records the status before passing it on.
+func (r *statusRecorder) WriteHeader(code int) {
+	r.status = code
+	r.ResponseWriter.WriteHeader(code)
+}
+
+// statusCode is the answered status; a handler that only wrote a body answered
+// 200.
+func (r *statusRecorder) statusCode() int {
+	if r.status == 0 {
+		return http.StatusOK
+	}
+	return r.status
+}
+
+// AppIdentity is the application identity an application token resolves to
+// (KOSD-C-86): the verified binding, the account's current role and the origin
+// the request carried.
+type AppIdentity struct {
+	// Binding is what the token was issued with.
+	Binding apptoken.Binding
+	// Role is the account's role read for this request.
+	Role write.Role
+	// Origin is the request's Origin header (KOSD-C-87).
+	Origin string
+}
+
+// appContextKey is private so no other package can forge an application
+// identity.
+type appContextKey struct{}
+
+// withApp records the resolved application identity on a request context.
+func withApp(ctx context.Context, identity AppIdentity) context.Context {
+	return context.WithValue(ctx, appContextKey{}, identity)
+}
+
+// AppFromContext returns the application identity the middleware resolved.
+func AppFromContext(ctx context.Context) (AppIdentity, bool) {
+	identity, ok := ctx.Value(appContextKey{}).(AppIdentity)
+	return identity, ok
 }
 
 // login trades a login name and password for a session (C-63).
@@ -190,6 +330,65 @@ func (a *API) logout(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := a.service.Logout(r.Context(), token); err != nil {
 		controlplane.WriteError(w, failureFor(err))
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// windowTokenRequest names the window the console host opens a token for.
+type windowTokenRequest struct {
+	Application string `json:"application"`
+	Extension   string `json:"extension"`
+	WindowID    string `json:"windowId"`
+	Origin      string `json:"origin"`
+}
+
+// windowTokenResponse carries one minted token back to the host.
+type windowTokenResponse struct {
+	Token     string    `json:"token"`
+	ExpiresAt time.Time `json:"expiresAt"`
+}
+
+// issueWindowToken mints the token one window holds (KOSD-C-75). The console
+// session is the caller: the host opens the window and the control plane keeps
+// the token, so the value it hands over is one it can verify itself.
+func (a *API) issueWindowToken(w http.ResponseWriter, r *http.Request) {
+	session, ok := FromContext(r.Context())
+	if !ok {
+		controlplane.WriteError(w, failureFor(ErrUnauthenticated))
+		return
+	}
+	var request windowTokenRequest
+	if failure := decodeBody(r, &request); failure != nil {
+		controlplane.WriteError(w, failure)
+		return
+	}
+	window, err := a.appIssuer.Issue(r.Context(), session, WindowTokenRequest{
+		Application: request.Application,
+		Extension:   request.Extension,
+		WindowID:    request.WindowID,
+		Origin:      request.Origin,
+	})
+	if err != nil {
+		controlplane.WriteError(w, failureFor(err))
+		return
+	}
+	writeJSON(w, http.StatusCreated, windowTokenResponse{
+		Token:     window.Token,
+		ExpiresAt: window.ExpiresAt,
+	})
+}
+
+// revokeWindowToken ends the token of one window, which is what closing the
+// window does (KOSD-C-75). Only the account that opened it ends it.
+func (a *API) revokeWindowToken(w http.ResponseWriter, r *http.Request) {
+	session, ok := FromContext(r.Context())
+	if !ok {
+		controlplane.WriteError(w, failureFor(ErrUnauthenticated))
+		return
+	}
+	if err := a.appIssuer.RevokeWindow(r.Context(), session.Username, r.PathValue("windowId")); err != nil {
+		controlplane.WriteError(w, failureFor(fmt.Errorf("%w: %v", ErrUnavailable, err)))
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
@@ -393,6 +592,9 @@ type Authorizer struct {
 // Decide implements controlplane.Authorizer. The actor travels back with the
 // decision so the audit stream records who was refused as well (C-14).
 func (a Authorizer) Decide(ctx context.Context, request controlplane.Request) (controlplane.Grant, error) {
+	if app, ok := AppFromContext(ctx); ok {
+		return a.decideApp(ctx, app, request)
+	}
 	session, ok := FromContext(ctx)
 	if !ok {
 		return controlplane.Grant{}, ErrUnauthenticated
@@ -415,6 +617,53 @@ func (a Authorizer) Decide(ctx context.Context, request controlplane.Request) (c
 	case errors.Is(err, controlplane.ErrHidden):
 		// A hidden object is answered as absent, not as a refusal (C-59).
 		return grant, controlplane.ErrHidden
+	default:
+		return grant, fmt.Errorf("%w: %v", ErrPermissionDenied, err)
+	}
+}
+
+// decideApp judges one request that carries an application token (KOSD-C-85,
+// KOSD-C-86). The account's current role travels with it, so a demotion takes
+// effect on the next request.
+func (a Authorizer) decideApp(ctx context.Context, app AppIdentity, request controlplane.Request) (controlplane.Grant, error) {
+	if a.Policy == nil {
+		// An application identity carries a restricted range and two origins, so
+		// nothing but the C-85 rule set can judge it. Missing that rule set is an
+		// answer the control plane does not have, not a permission (KOSD-C-86).
+		return controlplane.Grant{Actor: app.Binding.Account}, controlplane.ErrUnavailable
+	}
+	grant, err := a.Policy.Decide(ctx, access.Session{
+		Username: app.Binding.Account,
+		Role:     app.Role,
+		App: &access.AppSession{
+			Extension:   app.Binding.Extension,
+			AppID:       app.Binding.AppID,
+			Origin:      app.Origin,
+			TokenOrigin: app.Binding.Origin,
+			Grants:      app.Binding.Grants,
+			Objects:     app.Binding.Objects,
+		},
+	}, request)
+	switch {
+	case err == nil:
+		return grant, nil
+	case errors.Is(err, controlplane.ErrHidden):
+		// A collection read drops the object; a single read is an out-of-scope
+		// read and is answered as permission denied, never as an absent object
+		// (KOSD-C-85, KOSD-C-86).
+		if request.Filter {
+			return grant, controlplane.ErrHidden
+		}
+		return grant, fmt.Errorf("%w: the token does not admit %s", ErrPermissionDenied, request.Ref.String())
+	case errors.Is(err, controlplane.ErrUnavailable):
+		// The rule set exists but cannot answer. That is the third failure class
+		// and it must survive this seam unchanged, or the read path would judge
+		// it as a refusal (KOSD-C-86).
+		return grant, controlplane.ErrUnavailable
+	case errors.Is(err, controlplane.ErrUnadmitted):
+		// The identity is refused the surface itself, which is a permission
+		// answer rather than a subject the caller may not see (KOSD-C-86).
+		return grant, fmt.Errorf("%w: the application identity is not admitted", ErrPermissionDenied)
 	default:
 		return grant, fmt.Errorf("%w: %v", ErrPermissionDenied, err)
 	}
@@ -658,6 +907,14 @@ func failureFor(err error) *controlplane.Error {
 			Code:        controlplane.CodeDatabaseUnavailable,
 			Message:     "控制面数据库暂不可用，请稍后重试",
 			Stage:       controlplane.StageApply,
+			Retryable:   true,
+			SideEffects: controlplane.SideEffectsNone,
+		}
+	case errors.Is(err, ErrServiceUnavailable):
+		return &controlplane.Error{
+			Code:        controlplane.CodeServiceUnavailable,
+			Message:     "暂时无法确定令牌有效性或授权，请稍后重试",
+			Stage:       controlplane.StageAuthorize,
 			Retryable:   true,
 			SideEffects: controlplane.SideEffectsNone,
 		}
