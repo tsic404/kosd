@@ -1,5 +1,7 @@
 github.com/Masterminds/semver/v3 v3.4.0 h1:Zog+i5UMtVoCU8oKka5P7i9q9HgrJeGzI9SA1Xbatp0=
 github.com/Masterminds/semver/v3 v3.4.0/go.mod h1:4V+yj/TJE1HU9XfppCwVMZq3I84lprf4nC11bSS5beM=
+github.com/armon/go-socks5 v0.0.0-20160902184237-e75332964ef5 h1:0CwZNZbxp69SHPdPJAN/hZIm0C4OItdklCFmMRWYpio=
+github.com/armon/go-socks5 v0.0.0-20160902184237-e75332964ef5/go.mod h1:wHh0iHkYZB8zMSxRWpUBQtwG5a7fFgvEO+odwuTv2gs=
 github.com/beorn7/perks v1.0.1 h1:VlbKKnNfV8bJzeqoa4cOKqO6bYr3WgKZxO8Z16+hsOM=
 github.com/beorn7/perks v1.0.1/go.mod h1:G2ZrVWU2WbWT9wwq4/hrbKbnv/1ERSJQ0ibhJ6rlkpw=
 github.com/cespare/xxhash/v2 v2.3.0 h1:UL815xU9SqsFlibzuggzjXhog7bL6oX9BbNZnL2UFvs=
@@ -118,6 +120,8 @@ github.com/stretchr/objx v0.5.3/go.mod h1:rDQraq+vQZU7Fde9LOZLr8Tax6zZvy4kuNKF+Q
 github.com/stretchr/testify v1.3.0/go.mod h1:M5WIy9Dh21IEIfnGCwXGc5bZfKNJtfHm1UVUgZn+9EI=
 github.com/stretchr/testify v1.11.1 h1:7s2iGBzp5EwR7/aIZr8ao5+dra3wiQyKjjFuvgVKu7U=
 github.com/stretchr/testify v1.11.1/go.mod h1:wZwfW3scLgRK+23gO65QZefKpKQRnfz6sD981Nm4B6U=
+github.com/tsic404/kos-devicemanager v0.0.0-20261123022335-c1bd2da390fa h1:IhY3r/1iOxY4MO0zN5jozaUFi/fanwRJIdABgzAaSkA=
+github.com/tsic404/kos-devicemanager v0.0.0-20261123022335-c1bd2da390fa/go.mod h1:+faZOCUMT07zPtdzvqRSB/h9bezWcBkzKFCe1+cormY=
 github.com/tsic404/kos-diagnostics v0.0.0-20261119100421-a6dfef2c3a62 h1:dbu+Mq8Vhwl1U69Qm4VmQ5seBfVfeBeErVQZf4SBJbo=
 github.com/tsic404/kos-diagnostics v0.0.0-20261119100421-a6dfef2c3a62/go.mod h1:+u3CG+kV/MhmS8KFBiMN8ryMBcLFXU4RYPT6ojeIJBE=
 github.com/tsic404/kos-sdk v0.0.0-20261113175352-db19ac3e7b97 h1:041VpWlok4VZPOFcAkScxUUfkhiDA/xLvFyNIC/3wYs=
