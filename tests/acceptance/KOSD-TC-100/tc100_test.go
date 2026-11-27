@@ -20,14 +20,16 @@ import (
 	"github.com/tsic404/kosd/api/v1beta1"
 	"github.com/tsic404/kosd/pkg/controlplane"
 	"github.com/tsic404/kosd/pkg/device/kosdevicemanager"
-	"github.com/tsic404/kosd/pkg/diagnostics/kosdiagnostics"
 	"github.com/tsic404/kosd/pkg/endpoint/kosnetwork"
 	"github.com/tsic404/kosd/pkg/extension"
 	"github.com/tsic404/kosd/pkg/extension/kosupdater"
 	"github.com/tsic404/kosd/pkg/identity"
 	"github.com/tsic404/kosd/pkg/panel"
+	"github.com/tsic404/kosd/pkg/settings/kossettings"
 	"github.com/tsic404/kosd/pkg/volume/kosstorage"
 	"github.com/tsic404/kosd/tests/acceptance/harness"
+
+	kosdiagnostics "github.com/tsic404/kos-diagnostics"
 )
 
 const (
@@ -95,7 +97,8 @@ func TestTC100EveryPageRendersItsDeclaredItems(t *testing.T) {
 		},
 	})})
 	cluster.Create(t, harness.Volume(harness.Namespace, volumeName, map[string]any{
-		"mobility": string(v1beta1.VolumeMobilityNodeLocal), "capacity": "1Gi", "storageClass": storageClass,
+		"owner": ownerName, "mobility": string(v1beta1.VolumeMobilityNodeLocal),
+		"capacity": "1Gi", "storageClass": storageClass,
 	}))
 	writeVolumeStatus(t, cluster, now)
 	cluster.Create(t, harness.EndpointIn(harness.Namespace, "shop-web", harness.ManagedLabels(), map[string]any{
@@ -117,14 +120,17 @@ func TestTC100EveryPageRendersItsDeclaredItems(t *testing.T) {
 	networkReadings := &kosnetwork.Readings{Dynamic: cluster.Dynamic, Resolver: fixedResolver{}}
 	deviceReadings := &kosdevicemanager.Readings{Dynamic: cluster.Dynamic}
 	updaterReadings := &kosupdater.Readings{Dynamic: cluster.Dynamic}
-	diagnosticsReadings := &kosdiagnostics.Readings{Dynamic: cluster.Dynamic}
+	settingsReadings := &kossettings.Readings{Dynamic: cluster.Dynamic}
+	// The diagnostics reader is not supplied here: the panel registers the
+	// product's own reader under its identifier, so the page values come from
+	// the same wiring the production process uses.
 	shell := cluster.StartShell(t, func(config *panel.Config) {
 		config.Products = []panel.Product{
 			{Identifier: kosstorage.Identifier, Readings: storageReadings},
 			{Identifier: kosnetwork.Identifier, Readings: networkReadings},
 			{Identifier: kosdevicemanager.Identifier, Readings: deviceReadings},
 			{Identifier: kosupdater.Identifier, Readings: updaterReadings},
-			{Identifier: kosdiagnostics.Identifier, Readings: diagnosticsReadings},
+			{Identifier: kossettings.Identifier, Readings: settingsReadings},
 		}
 	})
 	clock := shell.Accounts.Clock.Now
@@ -132,7 +138,8 @@ func TestTC100EveryPageRendersItsDeclaredItems(t *testing.T) {
 	networkReadings.Now = clock
 	deviceReadings.Now = clock
 	updaterReadings.Now = clock
-	diagnosticsReadings.Now = clock
+	settingsReadings.Now = clock
+	settingsReadings.Accounts = shell.Accounts.Store
 
 	artifacts := extension.MemoryArtifacts{}
 	cluster.InstallPackageWith(t, "taskmanager", harness.TaskmanagerDeclaration(t), artifacts, shell.Retention())
@@ -140,7 +147,10 @@ func TestTC100EveryPageRendersItsDeclaredItems(t *testing.T) {
 	cluster.InstallPackageWith(t, "network", kosnetwork.Declaration(), artifacts, shell.Retention())
 	cluster.InstallPackageWith(t, "devicemanager", kosdevicemanager.Declaration(), artifacts, shell.Retention())
 	cluster.InstallPackageWith(t, "updater", kosupdater.Declaration(), artifacts, shell.Retention())
-	installation := cluster.InstallPackageWith(t, "diagnostics", kosdiagnostics.Declaration(), artifacts, shell.Retention())
+	cluster.InstallPackageWith(t, "diagnostics", kosdiagnostics.Declaration(), artifacts, shell.Retention())
+	// The last pass reads every component installed so far, so this
+	// projection carries all seven products' pages.
+	installation := cluster.InstallPackageWith(t, "settings", kossettings.Declaration(), artifacts, shell.Retention())
 	shell.Use(installation)
 	cluster.Create(t, &unstructured.Unstructured{Object: componentOf()})
 	token := shell.SignInOwner(t, ownerName, ownerPassword)
@@ -149,7 +159,7 @@ func TestTC100EveryPageRendersItsDeclaredItems(t *testing.T) {
 	for _, id := range []string{
 		taskmanager.PageOverview, taskmanager.PageApplications, kosstorage.PageStorage,
 		kosnetwork.PageNetwork, kosdevicemanager.PageDevices, kosupdater.PageComponents,
-		kosupdater.PageUpdates, kosdiagnostics.PageDiagnostics,
+		kosupdater.PageUpdates, kosdiagnostics.PageDiagnostics, kossettings.PageUsers,
 	} {
 		if !pages[id] {
 			t.Fatalf("page %q is not listed; the six products must render their pages", id)
@@ -164,6 +174,7 @@ func TestTC100EveryPageRendersItsDeclaredItems(t *testing.T) {
 	assertComponents(t, shell, token)
 	assertUpdates(t, shell, token)
 	assertDiagnostics(t, shell, token)
+	assertUsers(t, shell, token)
 }
 
 // assertOverview checks C-49's overview items.
@@ -451,6 +462,36 @@ func assertDiagnostics(t *testing.T, shell *harness.Shell, token string) {
 	}
 }
 
+// assertUsers checks the user page's three sources and its read-only
+// declaration: members and roles from the control-plane database, visibility
+// and ownership from the objects, no modification entry anywhere (C-50, C-53).
+func assertUsers(t *testing.T, shell *harness.Shell, token string) {
+	t.Helper()
+	page := readPage(t, shell, token, kossettings.PageUsers)
+	assertItems(t, page, map[string]string{
+		kossettings.UserMembers:                extension.PageSourceDatabase,
+		kossettings.ApplicationVisibility:      extension.PageSourceObject,
+		kossettings.ApplicationAndVolumeOwners: extension.PageSourceObject,
+	})
+	assertReadOnly(t, page)
+	members := valueList(t, page, kossettings.UserMembers)
+	if !listHasFields(t, members, map[string]string{"username": ownerName, "role": "Owner"}) {
+		t.Fatalf("members = %v, want the signed-in owner and its role", members)
+	}
+	visibility := valueList(t, page, kossettings.ApplicationVisibility)
+	if !listHasFields(t, visibility, map[string]string{"name": application, "owner": ownerName}) {
+		t.Fatalf("application visibility = %v, want %s owned by %s", visibility, application, ownerName)
+	}
+	owners := valueList(t, page, kossettings.ApplicationAndVolumeOwners)
+	if !listHasFields(t, owners, map[string]string{
+		"namespace": harness.Namespace, "name": application, "kind": "Application", "owner": ownerName,
+	}) || !listHasFields(t, owners, map[string]string{
+		"namespace": harness.Namespace, "name": volumeName, "kind": "Volume", "owner": ownerName,
+	}) {
+		t.Fatalf("owners = %v, want the application and the volume with their owner", owners)
+	}
+}
+
 // readPages lists the pages the panel serves.
 func readPages(t *testing.T, shell *harness.Shell, token string) map[string]bool {
 	t.Helper()
@@ -606,6 +647,42 @@ func listHas(t *testing.T, value map[string]any, field, name string) bool {
 			continue
 		}
 		if harness.String(object, "name") == name {
+			return true
+		}
+	}
+	return false
+}
+
+// valueList reads one item's value as the list it carries.
+func valueList(t *testing.T, page map[string]any, id string) []any {
+	t.Helper()
+	item, known := itemsByID(t, page)[id]
+	if !known {
+		t.Fatalf("page %q has no item %q", harness.String(page, "id"), id)
+	}
+	list, ok := item["value"].([]any)
+	if !ok {
+		t.Fatalf("item %q value = %v, want a list", id, item["value"])
+	}
+	return list
+}
+
+// listHasFields reports whether one entry of the list carries every field.
+func listHasFields(t *testing.T, list []any, want map[string]string) bool {
+	t.Helper()
+	for _, entry := range list {
+		object, ok := entry.(map[string]any)
+		if !ok {
+			continue
+		}
+		matched := true
+		for field, value := range want {
+			if harness.String(object, field) != value {
+				matched = false
+				break
+			}
+		}
+		if matched {
 			return true
 		}
 	}
