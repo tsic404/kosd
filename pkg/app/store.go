@@ -15,6 +15,7 @@ import (
 
 	"github.com/tsic404/kosd/api"
 	"github.com/tsic404/kosd/api/v1beta1"
+	"github.com/tsic404/kosd/pkg/reference"
 	"github.com/tsic404/kosd/pkg/write"
 )
 
@@ -27,6 +28,13 @@ type WriterStore struct {
 // NewWriterStore builds a store over one write path.
 func NewWriterStore(writer *write.Writer) *WriterStore {
 	return &WriterStore{writer: writer}
+}
+
+// ReferenceBoundary returns the C-19 exclusion over the cluster this store
+// writes to, so the gate release and the control plane's reference writes take
+// the same record.
+func (s *WriterStore) ReferenceBoundary() *reference.Boundary {
+	return reference.New(s.writer.Dynamic, api.SystemNamespace)
 }
 
 // Get reads one object.

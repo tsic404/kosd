@@ -8,6 +8,7 @@ import (
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
 	"github.com/tsic404/kosd/api"
@@ -183,6 +184,14 @@ func (s *Server) buildPlan(ctx context.Context, judge context.Context, verb Verb
 			if failure := s.validateApplicationInstall(object.Object); failure != nil {
 				return nil, nil, nil, failure
 			}
+			// The set path is not a way around C-19: a create that introduces a
+			// reference to an Application already being removed is refused here,
+			// before the request is accepted (C-12).
+			if verb == VerbApply {
+				if failure := s.guardReferences(ctx, object.Object, nil); failure != nil {
+					return nil, nil, nil, failure
+				}
+			}
 			grants[object.Ref.String()] = item
 			if failure := applyOwner(object.Object, item); failure != nil {
 				return nil, nil, nil, s.auditFailure(ctx, s.actorOfGrant(judge, item), item.Extension, object.Ref, setVerb(verb), failure)
@@ -219,6 +228,13 @@ func (s *Server) buildPlan(ctx context.Context, judge context.Context, verb Verb
 		object, failure = withStoredAttribution(object, current.Object)
 		if failure != nil {
 			return nil, nil, nil, s.auditFailure(ctx, s.actorOfGrant(judge, item), item.Extension, object.Ref, setVerb(verb), failure)
+		}
+		// An update in a set introduces a reference exactly as a single-object
+		// update does, so it meets the same C-19 judgement.
+		if verb == VerbApply {
+			if failure := s.guardReferences(ctx, object.Object, &unstructured.Unstructured{Object: current.Object}); failure != nil {
+				return nil, nil, nil, failure
+			}
 		}
 		desired[index] = object
 		if differences := changes(current.Object, object.Object.Object); len(differences) > 0 {
@@ -537,7 +553,12 @@ func (s *Server) execute(ctx context.Context, plan *Plan, desired []desiredObjec
 	for _, planned := range plan.Create {
 		object := byRef[planned.Ref.String()]
 		grant := grants[planned.Ref.String()]
-		if failure := s.create(ctx, object); failure != nil {
+		// The request was accepted before the uninstall started, so the guard is
+		// judged again at the write: a reference that would now name a removing
+		// Application is not stored (C-19).
+		if failure := s.writeReferenced(ctx, object, nil, func(ctx context.Context) *Error {
+			return s.create(ctx, object)
+		}); failure != nil {
 			s.audit(ctx, s.actorOfGrant(ctx, grant), grant.Extension, object.Ref, string(VerbCreate), ResultFailed)
 			return
 		}
@@ -546,7 +567,9 @@ func (s *Server) execute(ctx context.Context, plan *Plan, desired []desiredObjec
 	for _, planned := range plan.Update {
 		object := byRef[planned.Ref.String()]
 		grant := grants[planned.Ref.String()]
-		if failure := s.update(ctx, object, ""); failure != nil {
+		if failure := s.writeReferenced(ctx, object, s.liveStored(ctx, object), func(ctx context.Context) *Error {
+			return s.update(ctx, object, "")
+		}); failure != nil {
 			s.audit(ctx, s.actorOfGrant(ctx, grant), grant.Extension, object.Ref, string(VerbUpdate), ResultFailed)
 			return
 		}
@@ -560,6 +583,17 @@ func (s *Server) execute(ctx context.Context, plan *Plan, desired []desiredObjec
 		}
 		s.audit(ctx, s.actorOfGrant(ctx, grant), grant.Extension, planned.Ref, string(VerbDelete), ResultAccepted)
 	}
+}
+
+// liveStored reads the object a set update rewrites, so C-19's guard judges
+// only the references that write adds. A read failure leaves the guard with no
+// stored object, which refuses rather than admits a reference.
+func (s *Server) liveStored(ctx context.Context, object desiredObject) *unstructured.Unstructured {
+	stored, err := resourceOf(s.dynamic, object.Type, object.Ref.Namespace).Get(ctx, object.Ref.Name, metav1.GetOptions{})
+	if err != nil {
+		return nil
+	}
+	return stored
 }
 
 // applyDesired replaces the client-owned fields of an object with the desired

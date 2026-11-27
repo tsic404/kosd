@@ -22,6 +22,7 @@ import (
 	"github.com/tsic404/kosd/pkg/markers"
 	"github.com/tsic404/kosd/pkg/nodehealth"
 	"github.com/tsic404/kosd/pkg/reconcile"
+	"github.com/tsic404/kosd/pkg/reference"
 	"github.com/tsic404/kosd/pkg/state"
 	"github.com/tsic404/kosd/pkg/volume"
 	"github.com/tsic404/kosd/pkg/write"
@@ -140,6 +141,20 @@ type ProviderSource interface {
 	UnavailableCapabilities(ctx context.Context) ([]string, error)
 }
 
+// ReferenceGate reports the extension objects that declare a reference to one
+// kernel object (C-19). The uninstall asks it before releasing the gate; a nil
+// gate reports nothing.
+type ReferenceGate interface {
+	Referrers(ctx context.Context, target write.Ref) ([]v1beta1.ObjectRef, error)
+}
+
+// BoundarySource names the C-19 exclusion a Store can offer. The production
+// store writes to the cluster, so it can hand out the same record the control
+// plane's write path takes.
+type BoundarySource interface {
+	ReferenceBoundary() *reference.Boundary
+}
+
 // storeProviders reads provider health from the Provider objects of the cluster
 // (C-47). A provider whose own health is Unavailable has crashed.
 type storeProviders struct {
@@ -209,6 +224,13 @@ type Options struct {
 	// Nodes reports whether the run kernel took a node out of scheduling; nil
 	// reads the Node objects through the store.
 	Nodes NodeSource
+	// References reports the served extension objects that declare a reference
+	// to the application (C-19); nil lets every uninstall proceed.
+	References ReferenceGate
+	// Boundary is the exclusion a reference write and the gate release share
+	// (C-19). A nil value uses the record the store writes to, when it offers
+	// one; without either, the release runs with no exclusion.
+	Boundary *reference.Boundary
 	// Clock supplies the round time; defaults to time.Now.
 	Clock func() time.Time
 }
@@ -222,6 +244,8 @@ type Controller struct {
 	providers    ProviderSource
 	nodeGrace    time.Duration
 	nodes        NodeSource
+	references   ReferenceGate
+	boundary     *reference.Boundary
 	clock        func() time.Time
 }
 
@@ -234,7 +258,16 @@ func NewController(store Store, options Options) *Controller {
 		providers:    options.Providers,
 		nodeGrace:    options.NodeGrace,
 		nodes:        options.Nodes,
+		references:   options.References,
+		boundary:     options.Boundary,
 		clock:        options.Clock,
+	}
+	if controller.boundary == nil {
+		// The production store writes to the same cluster the control plane
+		// does, so the two take the same record without extra wiring.
+		if source, ok := store.(BoundarySource); ok {
+			controller.boundary = source.ReferenceBoundary()
+		}
 	}
 	if controller.capabilities == nil {
 		controller.capabilities = StaticCapabilities(nil)
@@ -678,16 +711,39 @@ func (c *Controller) uninstall(ctx context.Context, application *v1beta1.Applica
 		record = nil
 	}
 	if action == ActionOrphan {
-		if err := c.writeAbandonment(ctx, application); err != nil {
+		// orphan gives up blocked downstream objects; it never gives up an
+		// object an extension still points at, so a served reference keeps the
+		// gate exactly as an ordinary uninstall does (C-19, C-33).
+		referrers, err := c.referenceBlockers(ctx, application)
+		if err != nil {
 			return reconcile.Result{}, err
 		}
-		if err := c.clearFinalizer(ctx, application); err != nil {
+		if len(referrers) > 0 {
+			return c.blockUninstall(ctx, application, referrers, now)
+		}
+		// The manifest is written inside the release boundary, after the scan
+		// that decides the release, so a reference that appears meanwhile blocks
+		// the round instead of leaving a manifest for an application that stays.
+		manifest := func(ctx context.Context) error { return c.writeAbandonment(ctx, application) }
+		if result, err := c.releaseFinalizer(ctx, application, manifest); err != nil {
 			return reconcile.Result{}, err
+		} else if result.RequeueAfter > 0 {
+			return result, nil
 		}
 		if err := c.deleteRecord(ctx, record); err != nil {
 			return reconcile.Result{}, err
 		}
 		return reconcile.Result{}, nil
+	}
+	// A served extension object that names the application holds the uninstall
+	// before any downstream object is touched: the gate stays and the object
+	// that names the application is listed (C-19).
+	referrers, err := c.referenceBlockers(ctx, application)
+	if err != nil {
+		return reconcile.Result{}, err
+	}
+	if len(referrers) > 0 {
+		return c.blockUninstall(ctx, application, referrers, now)
 	}
 	blocked := make([]v1beta1.ObjectRef, 0, len(application.Status.Rendered))
 	for _, rendered := range application.Status.Rendered {
@@ -709,8 +765,33 @@ func (c *Controller) uninstall(ctx context.Context, application *v1beta1.Applica
 		}
 	}
 	if len(blocked) == 0 {
-		return reconcile.Result{}, c.clearFinalizer(ctx, application)
+		return c.releaseFinalizer(ctx, application, nil)
 	}
+	return c.blockUninstall(ctx, application, blocked, now)
+}
+
+// referenceBlockers lists the served extension objects that declare a
+// reference to the application itself (C-19). A class that is not served
+// contributes no edge, so the references it keeps in storage never hold the
+// uninstall.
+func (c *Controller) referenceBlockers(ctx context.Context, application *v1beta1.Application) ([]v1beta1.ObjectRef, error) {
+	if c.references == nil {
+		return nil, nil
+	}
+	referrers, err := c.references.Referrers(ctx, write.Ref{
+		Group: api.Group, Version: v1beta1.GroupVersion.Version, Kind: "Application",
+		Namespace: application.Namespace, Name: application.Name,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("read the extension references of application %q: %w", application.Name, err)
+	}
+	return referrers, nil
+}
+
+// blockUninstall reports an uninstall held by objects it cannot remove: the
+// phase stays Uninstalling, the gate stays, and the blockers are listed
+// (C-19, C-33).
+func (c *Controller) blockUninstall(ctx context.Context, application *v1beta1.Application, blocked []v1beta1.ObjectRef, now time.Time) (reconcile.Result, error) {
 	blockedSince := now
 	if current := application.Status.Uninstall; current != nil && current.BlockedSince != nil {
 		blockedSince = current.BlockedSince.Time
@@ -731,9 +812,13 @@ func (c *Controller) uninstall(ctx context.Context, application *v1beta1.Applica
 }
 
 // writeAbandonment writes the immutable abandonment manifest of one orphan: the
-// blocked objects it gives up and the volumes it keeps (C-33). The application
-// reconciler is the writer C-04 allocates; writing once leaves the manifest
-// readable after the application object is gone.
+// downstream objects still in the cluster, which KOS stops managing, and the
+// volumes it keeps (C-33). The entries come from the cluster as it stands, not
+// from an earlier blocked list: a round blocked by a reference lists only the
+// referrers, so that list would leave the downstream objects it never touched
+// out of the manifest. The application reconciler is the writer C-04 allocates;
+// writing once leaves the manifest readable after the application object is
+// gone.
 func (c *Controller) writeAbandonment(ctx context.Context, application *v1beta1.Application) error {
 	name := AbandonmentName(string(application.UID))
 	ref := write.Ref{Version: "v1", Kind: "ConfigMap", Namespace: api.SystemNamespace, Name: name}
@@ -742,11 +827,31 @@ func (c *Controller) writeAbandonment(ctx context.Context, application *v1beta1.
 	} else if !apierrors.IsNotFound(err) {
 		return err
 	}
-	entries := make([]Abandonment, 0)
-	if application.Status.Uninstall != nil {
-		for _, blocked := range application.Status.Uninstall.Blocked {
-			entries = append(entries, Abandonment{Object: blocked, Disposition: DispositionAbandoned})
+	entries := make([]Abandonment, 0, len(application.Status.Rendered)+len(application.Spec.Volumes))
+	listed := make(map[string]bool, len(application.Status.Rendered))
+	for _, rendered := range application.Status.Rendered {
+		namespace := rendered.Namespace
+		if namespace == "" {
+			namespace = application.Spec.Namespace
 		}
+		_, err := c.store.Get(ctx, write.Ref{
+			Group: rendered.Group, Version: rendered.Version, Kind: rendered.Kind,
+			Namespace: namespace, Name: rendered.Name,
+		})
+		if apierrors.IsNotFound(err) {
+			// The object is already gone, so the orphan leaves nothing behind.
+			continue
+		}
+		if err != nil {
+			return err
+		}
+		if listed[identityOfRef(rendered)] {
+			continue
+		}
+		listed[identityOfRef(rendered)] = true
+		object := rendered
+		object.Namespace = namespace
+		entries = append(entries, Abandonment{Object: object, Disposition: DispositionAbandoned})
 	}
 	for _, volume := range application.Spec.Volumes {
 		entries = append(entries, Abandonment{
@@ -879,6 +984,50 @@ func (c *Controller) clearFinalizer(ctx context.Context, application *v1beta1.Ap
 	}
 	_, err := c.store.SetFinalizers(ctx, ref, remaining)
 	return err
+}
+
+// releaseFinalizer releases the uninstall gate only when no served reference
+// names the application (C-19). The scan that decided the round is not a
+// boundary: a reference is stored on another object, so neither the
+// Application's version nor a later read of it proves anything. The release
+// scans again while holding the record the write path also takes, so a
+// reference stored before the release is seen here and one that starts after it
+// finds the Application gone.
+// prepare, when set, runs after the scan cleared and before the gate opens, so
+// an orphan records what it leaves behind only once the release is decided.
+func (c *Controller) releaseFinalizer(ctx context.Context, application *v1beta1.Application, prepare func(context.Context) error) (reconcile.Result, error) {
+	release := func(ctx context.Context) (reconcile.Result, error) {
+		referrers, err := c.referenceBlockers(ctx, application)
+		if err != nil {
+			return reconcile.Result{}, err
+		}
+		if len(referrers) > 0 {
+			return c.blockUninstall(ctx, application, referrers, c.clock())
+		}
+		if prepare != nil {
+			if err := prepare(ctx); err != nil {
+				return reconcile.Result{}, err
+			}
+		}
+		return reconcile.Result{}, c.clearFinalizer(ctx, application)
+	}
+	if c.references == nil {
+		// Nothing observes references here, so there is no second writer to
+		// exclude and no record to take.
+		return release(ctx)
+	}
+	var result reconcile.Result
+	err := c.boundary.Do(ctx, applicationBoundaryKey(application), func(ctx context.Context) error {
+		var err error
+		result, err = release(ctx)
+		return err
+	})
+	return result, err
+}
+
+// applicationBoundaryKey names the C-19 exclusion of one application.
+func applicationBoundaryKey(application *v1beta1.Application) string {
+	return reference.Key(api.Group, "Application", application.Namespace, application.Name)
 }
 
 // writeStatus writes the status only when it changed, so a repeat observation

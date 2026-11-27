@@ -16,9 +16,11 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/dynamic"
 
+	"github.com/tsic404/kosd/api"
 	"github.com/tsic404/kosd/pkg/budget"
 	"github.com/tsic404/kosd/pkg/degrade"
 	"github.com/tsic404/kosd/pkg/endpoint"
+	"github.com/tsic404/kosd/pkg/reference"
 )
 
 // Verb names what a request does, so one decision covers reads, writes and
@@ -212,6 +214,7 @@ type Server struct {
 	terminal          *terminalService
 	now               func() time.Time
 	timeout           time.Duration
+	boundary          *reference.Boundary
 	log               *slog.Logger
 	operations        context.Context
 	stop              context.CancelFunc
@@ -245,6 +248,7 @@ func New(config Config) (*Server, error) {
 		now:               config.Now,
 		timeout:           config.OperationTimeout,
 		log:               config.Log,
+		boundary:          reference.New(config.Dynamic, api.SystemNamespace),
 	}
 	if server.authorizer == nil {
 		server.authorizer = AllowAll{}
@@ -563,7 +567,9 @@ func (s *Server) handleCreate(w http.ResponseWriter, r *http.Request) {
 	case err == nil:
 		// A repeat of the same create is not a conflict, and this path never
 		// rewrites the object, so the comparison keeps the markers the stored
-		// object already carries (C-02, C-12).
+		// object already carries (C-02, C-12). It introduces no reference: the
+		// references it names are the ones already stored, so C-19's rule does
+		// not apply and the retry answers as the first request did.
 		existing, failure := withStoredAttribution(object, current.Object)
 		if failure != nil {
 			writeError(w, s.auditFailure(ctx, actor, grant.Extension, object.Ref, "create", failure))
@@ -600,7 +606,9 @@ func (s *Server) handleCreate(w http.ResponseWriter, r *http.Request) {
 	// The control plane is the creator here, so this is the one place the
 	// attribution marker is written; an existing object keeps its own (C-02).
 	object = withCreationAttribution(object)
-	if failure := s.create(ctx, object); failure != nil {
+	if failure := s.writeReferenced(ctx, object, nil, func(ctx context.Context) *Error {
+		return s.create(ctx, object)
+	}); failure != nil {
 		writeError(w, s.auditFailure(ctx, actor, grant.Extension, object.Ref, "create", failure))
 		return
 	}
@@ -673,6 +681,7 @@ func (s *Server) handleUpdate(w http.ResponseWriter, r *http.Request) {
 		writeError(w, s.auditFailure(ctx, actor, grant.Extension, object.Ref, "update", failure))
 		return
 	}
+	stored := &unstructured.Unstructured{Object: current.Object}
 	if failure := validateEndpointUpdate(current.Object, object); failure != nil {
 		writeError(w, s.auditFailure(ctx, actor, grant.Extension, object.Ref, "update", failure))
 		return
@@ -705,7 +714,9 @@ func (s *Server) handleUpdate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if failure := s.update(ctx, object, precondition); failure != nil {
+	if failure := s.writeReferenced(ctx, object, stored, func(ctx context.Context) *Error {
+		return s.update(ctx, object, precondition)
+	}); failure != nil {
 		writeError(w, s.auditFailure(ctx, actor, grant.Extension, object.Ref, "update", failure))
 		return
 	}

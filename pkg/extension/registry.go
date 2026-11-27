@@ -141,6 +141,7 @@ func (r *Registry) ObjectClass(group, kind string) (controlplane.ExtensionObject
 		Versions:   append([]string(nil), class.Versions...),
 		Resource:   class.Resource,
 		Namespaced: class.Namespaced,
+		References: append([]string(nil), class.References...),
 	}, true
 }
 

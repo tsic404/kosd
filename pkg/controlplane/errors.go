@@ -59,6 +59,9 @@ const (
 	CodeObjectExists = "object_exists"
 	// CodeConflict marks a write whose precondition no longer holds.
 	CodeConflict = "conflict"
+	// CodeReferenceRefused marks a write that would add a declarative reference
+	// to a kernel object whose removal already started (KOSD-C-19).
+	CodeReferenceRefused = "reference_refused"
 	// CodeWriteFailed marks a write the cluster refused or failed.
 	CodeWriteFailed = "write_failed"
 	// CodeInternal marks a failure on this side of the API.
@@ -197,7 +200,7 @@ func (e *Error) status() int {
 		return http.StatusMethodNotAllowed
 	case CodeCapabilityMissing:
 		return http.StatusUnprocessableEntity
-	case CodeObjectExists, CodeConflict, CodeAccountExists, CodeLastOwner, CodeAccountHasObjects,
+	case CodeObjectExists, CodeConflict, CodeReferenceRefused, CodeAccountExists, CodeLastOwner, CodeAccountHasObjects,
 		CodeTerminalTargetEnded:
 		return http.StatusConflict
 	case CodeWriteFailed, CodeClusterUnavailable, CodeClusterCredentialsInvalid:
